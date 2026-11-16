@@ -1,0 +1,2 @@
+# medibook-doctor-appointment-consultation-management-systemm
+Develop a web-based healthcare appointment management application where patients can search for doctors based on their disease, symptoms, or medical specialization, view available doctors and their consultation time slots, and book, reschedule, or cancel appointments. Doctors can manage their availability, view scheduled appointments, maintain pati
