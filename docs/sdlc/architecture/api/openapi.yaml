@@ -2,6 +2,733 @@
 openapi: 3.1.0
 info:
   title: MediBook – Doctor Appointment & Consultation Management Systemm
-  version: architecture-v0
+  version: architecture-v1
   description: Designed API from the approved architecture (not extracted from code).
-paths: {}
+paths:
+  /admin/appointments:
+    get:
+      summary: Admin oversight of all appointments with filters by doctor, patient,
+        date and status.
+      description: Admin oversight of all appointments with filters by doctor, patient,
+        date and status.
+      operationId: get_admin_appointments
+      parameters: []
+      responses:
+        '200':
+          description: '{appointments[]}'
+      security:
+      - bearerAuth: []
+  /admin/appointments/{id}/reassign:
+    put:
+      summary: Admin reassigns an appointment to another doctor/slot under the same
+        locking rules; parties notified.
+      description: Admin reassigns an appointment to another doctor/slot under the
+        same locking rules; parties notified.
+      operationId: put_admin_appointments_id_reassign
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '{new_slot_id}'
+      responses:
+        '200':
+          description: '{appointment} or 409 slot taken'
+      security:
+      - bearerAuth: []
+  /admin/audit-logs:
+    get:
+      summary: Admin reviews access/change events for consultation records and appointments.
+      description: Admin reviews access/change events for consultation records and
+        appointments.
+      operationId: get_admin_audit_logs
+      parameters: []
+      responses:
+        '200':
+          description: '{entries[]}'
+      security:
+      - bearerAuth: []
+  /admin/doctors/{doctor_id}/availability:
+    put:
+      summary: Admin overrides a doctor's availability or blocks time ranges; warns
+        about affected booked appointments.
+      description: Admin overrides a doctor's availability or blocks time ranges;
+        warns about affected booked appointments.
+      operationId: put_admin_doctors_doctor_id_availability
+      parameters:
+      - name: doctor_id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '{entries[] or blocks[]}'
+      responses:
+        '200':
+          description: '{warnings[]}'
+      security:
+      - bearerAuth: []
+  /admin/doctors/{doctor_id}/status:
+    put:
+      summary: Admin deactivates/reactivates a doctor; deactivation removes them from
+        search, ends sessions, flags appointments.
+      description: Admin deactivates/reactivates a doctor; deactivation removes them
+        from search, ends sessions, flags appointments.
+      operationId: put_admin_doctors_doctor_id_status
+      parameters:
+      - name: doctor_id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '{is_active}'
+      responses:
+        '200':
+          description: '{is_active}'
+      security:
+      - bearerAuth: []
+  /admin/email-settings:
+    put:
+      summary: Admin configures the transactional email provider API key; stored as
+        a secret, never displayed.
+      description: Admin configures the transactional email provider API key; stored
+        as a secret, never displayed.
+      operationId: put_admin_email_settings
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '{api_key: <your-api-key>}'
+      responses:
+        '200':
+          description: '{configured: true}'
+      security:
+      - bearerAuth: []
+  /admin/users:
+    post:
+      summary: Admin provisions a doctor or admin account; password placeholder <set-at-first-login>
+        recorded, not a real credential.
+      description: Admin provisions a doctor or admin account; password placeholder
+        <set-at-first-login> recorded, not a real credential.
+      operationId: post_admin_users
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '{email, phone, role, full_name, specialization_id?}'
+      responses:
+        '200':
+          description: '{user_id}'
+      security:
+      - bearerAuth: []
+  /appointments:
+    post:
+      summary: Book a whole slot with server-side double-booking prevention (slot
+        locked FOR UPDATE); requires consent; no payment.
+      description: Book a whole slot with server-side double-booking prevention (slot
+        locked FOR UPDATE); requires consent; no payment.
+      operationId: post_appointments
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '{slot_id}'
+      responses:
+        '200':
+          description: 201 {appointment} or 409 slot no longer available
+      security:
+      - bearerAuth: []
+  /appointments/{id}/cancel:
+    post:
+      summary: Cancel an upcoming appointment, freeing its slot; completed/past appointments
+        cannot be cancelled.
+      description: Cancel an upcoming appointment, freeing its slot; completed/past
+        appointments cannot be cancelled.
+      operationId: post_appointments_id_cancel
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Bearer token
+      responses:
+        '200':
+          description: '{status: cancelled} or 409 not cancellable'
+      security:
+      - bearerAuth: []
+  /appointments/{id}/consultation:
+    get:
+      summary: View consultation record; visible only to the owning patient, treating
+        doctor and admins; audit-logged.
+      description: View consultation record; visible only to the owning patient, treating
+        doctor and admins; audit-logged.
+      operationId: get_appointments_id_consultation
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: '{record} or 403'
+      security:
+      - bearerAuth: []
+    put:
+      summary: Treating doctor saves free-text notes, diagnosis and optional prescription;
+        access denied for non-treating doctors; audi
+      description: Treating doctor saves free-text notes, diagnosis and optional prescription;
+        access denied for non-treating doctors; audit-logged.
+      operationId: put_appointments_id_consultation
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '{notes, diagnosis, prescription?}'
+      responses:
+        '200':
+          description: '{record}'
+      security:
+      - bearerAuth: []
+  /appointments/{id}/reschedule:
+    put:
+      summary: Move an upcoming appointment to another free slot under the same locking
+        rules; original slot released.
+      description: Move an upcoming appointment to another free slot under the same
+        locking rules; original slot released.
+      operationId: put_appointments_id_reschedule
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '{new_slot_id}'
+      responses:
+        '200':
+          description: '{appointment} or 409 slot taken'
+      security:
+      - bearerAuth: []
+  /appointments/{id}/status:
+    put:
+      summary: Treating doctor updates status (scheduled/completed/no_show); invalid
+        transitions (e.g. completing a cancelled appointme
+      description: Treating doctor updates status (scheduled/completed/no_show); invalid
+        transitions (e.g. completing a cancelled appointment) rejected.
+      operationId: put_appointments_id_status
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '{status}'
+      responses:
+        '200':
+          description: '{status} or 409 invalid transition'
+      security:
+      - bearerAuth: []
+  /auth/login:
+    post:
+      summary: Sign in; returns opaque session token in body on success, generic failure
+        otherwise.
+      description: Sign in; returns opaque session token in body on success, generic
+        failure otherwise.
+      operationId: post_auth_login
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '{email, password}'
+      responses:
+        '200':
+          description: '{token, role} or 401 generic failure'
+  /auth/logout:
+    post:
+      summary: Revoke the current session token server-side.
+      description: Revoke the current session token server-side.
+      operationId: post_auth_logout
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Bearer token
+      responses:
+        '200':
+          description: '204'
+      security:
+      - bearerAuth: []
+  /auth/register:
+    post:
+      summary: Patient self-registration with email, phone, password; rejects duplicate
+        email or invalid fields; stores password hashed
+      description: Patient self-registration with email, phone, password; rejects
+        duplicate email or invalid fields; stores password hashed.
+      operationId: post_auth_register
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '{email, phone, password}'
+      responses:
+        '200':
+          description: '{user_id, role} or 409 email in use / 422 field errors'
+  /doctor/appointments:
+    get:
+      summary: 'Doctor dashboard: scheduled appointments with patient name, date/time,
+        slot and status; empty-state when none.'
+      description: 'Doctor dashboard: scheduled appointments with patient name, date/time,
+        slot and status; empty-state when none.'
+      operationId: get_doctor_appointments
+      parameters: []
+      responses:
+        '200':
+          description: '{appointments[]}'
+      security:
+      - bearerAuth: []
+  /doctors/{doctor_id}/slots:
+    get:
+      summary: Real-time list of unbooked future slots for a doctor.
+      description: Real-time list of unbooked future slots for a doctor.
+      operationId: get_doctors_doctor_id_slots
+      parameters:
+      - name: doctor_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: '{slots[]}'
+      security:
+      - bearerAuth: []
+  /me/appointments:
+    get:
+      summary: 'Patient dashboard: upcoming and past appointments with doctor, specialization,
+        date/time and status.'
+      description: 'Patient dashboard: upcoming and past appointments with doctor,
+        specialization, date/time and status.'
+      operationId: get_me_appointments
+      parameters: []
+      responses:
+        '200':
+          description: '{appointments[]}'
+      security:
+      - bearerAuth: []
+  /me/availability:
+    put:
+      summary: Doctor sets recurring weekly hours and slot length; overlaps merged/rejected;
+        warns if an existing booking is affected.
+      description: Doctor sets recurring weekly hours and slot length; overlaps merged/rejected;
+        warns if an existing booking is affected.
+      operationId: put_me_availability
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '{entries:[{day_of_week,start_time,end_time,slot_length_minutes}]}'
+      responses:
+        '200':
+          description: '{generated_slots_count, warnings[]}'
+      security:
+      - bearerAuth: []
+  /me/consent:
+    post:
+      summary: Patient gives health-data consent; stored with timestamp.
+      description: Patient gives health-data consent; stored with timestamp.
+      operationId: post_me_consent
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Bearer token
+      responses:
+        '200':
+          description: '{consented_at}'
+      security:
+      - bearerAuth: []
+  /me/profile:
+    get:
+      summary: View own patient or doctor profile.
+      description: View own patient or doctor profile.
+      operationId: get_me_profile
+      parameters: []
+      responses:
+        '200':
+          description: '{profile}'
+      security:
+      - bearerAuth: []
+    put:
+      summary: Update own profile; email uniqueness enforced; doctor specialization
+        limited to admin-defined list.
+      description: Update own profile; email uniqueness enforced; doctor specialization
+        limited to admin-defined list.
+      operationId: put_me_profile
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '{name, email, phone, bio?, specialization_id?}'
+      responses:
+        '200':
+          description: '{profile} or 409 email in use'
+      security:
+      - bearerAuth: []
+  /search/doctors:
+    get:
+      summary: Search doctors by disease/symptom (static mapping) or specialization;
+        returns active doctors or no-mapping message.
+      description: Search doctors by disease/symptom (static mapping) or specialization;
+        returns active doctors or no-mapping message.
+      operationId: get_search_doctors
+      parameters: []
+      responses:
+        '200':
+          description: '{doctors[]} or {no_mapping: true}'
+      security:
+      - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    users:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        phone:
+          type: string
+        password_hash:
+          type: string
+        role:
+          type: string
+        full_name:
+          type: string
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - email
+      - password_hash
+      - role
+      - is_active
+      - created_at
+    sessions:
+      type: object
+      properties:
+        token:
+          type: string
+        user_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        last_activity_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: string
+          format: date-time
+      required:
+      - token
+      - user_id
+      - created_at
+      - last_activity_at
+      - expires_at
+    patient_consents:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        patient_id:
+          type: string
+          format: uuid
+        consented:
+          type: boolean
+        consented_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - patient_id
+      - consented
+      - consented_at
+    specializations:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        is_active:
+          type: boolean
+      required:
+      - id
+      - name
+      - is_active
+    doctor_profiles:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        specialization_id:
+          type: string
+          format: uuid
+        bio:
+          type: string
+        contact:
+          type: string
+      required:
+      - id
+      - user_id
+      - specialization_id
+    disease_mappings:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        term:
+          type: string
+      required:
+      - id
+      - term
+    disease_mapping_specializations:
+      type: object
+      properties:
+        mapping_id:
+          type: string
+          format: uuid
+        specialization_id:
+          type: string
+          format: uuid
+      required:
+      - mapping_id
+      - specialization_id
+    doctor_availability:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        doctor_id:
+          type: string
+          format: uuid
+        day_of_week:
+          type: string
+        start_time:
+          type: string
+        end_time:
+          type: string
+        slot_length_minutes:
+          type: string
+      required:
+      - id
+      - doctor_id
+      - day_of_week
+      - start_time
+      - end_time
+      - slot_length_minutes
+    appointment_slots:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        doctor_id:
+          type: string
+          format: uuid
+        start_at:
+          type: string
+          format: date-time
+        end_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+      required:
+      - id
+      - doctor_id
+      - start_at
+      - end_at
+      - status
+    appointments:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slot_id:
+          type: string
+          format: uuid
+        patient_id:
+          type: string
+          format: uuid
+        doctor_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - slot_id
+      - patient_id
+      - doctor_id
+      - status
+      - created_at
+    consultation_records:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        appointment_id:
+          type: string
+          format: uuid
+        patient_id:
+          type: string
+          format: uuid
+        doctor_id:
+          type: string
+          format: uuid
+        notes:
+          type: string
+        diagnosis:
+          type: string
+        prescription:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - appointment_id
+      - patient_id
+      - doctor_id
+      - updated_at
+    notification_log:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        appointment_id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+        status:
+          type: string
+        error:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - kind
+      - status
+      - created_at
+    audit_logs:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        action:
+          type: string
+        entity_type:
+          type: string
+        entity_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - user_id
+      - action
+      - entity_type
+      - entity_id
+      - created_at
