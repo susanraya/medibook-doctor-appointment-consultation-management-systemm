@@ -14,8 +14,24 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import models  # noqa: F401 -- imported so the tables register before create_all
-from app.database import Base, engine
+from app.database import Base, SessionLocal, engine
+from app.routers import all_routers
+from app.seed import seed_bootstrap_users
 from app.services import configured_services
+
+APP_DESCRIPTION = (
+    "Develop a web-based healthcare appointment management application where patients "
+    "can search for doctors based on their disease, symptoms, or medical specialization, "
+    "view available doctors and their consultation time slots, and book, reschedule, or "
+    "cancel appointments. Doctors can manage their availability, view scheduled "
+    "appointments, maintain patient consultation records, and update consultation "
+    "statuses. The system should support role-based access for patients, doctors, and "
+    "administrators, with an admin dashboard to manage doctors, specializations, and "
+    "appointments. The application must use predefined disease-to-specialization "
+    "mappings to help patients find relevant doctors, without using AI, LLMs, or machine "
+    "learning. It should prevent double bookings and display real-time appointment "
+    "availability. No payment gateway or online payment functionality is required."
+)
 
 
 @asynccontextmanager
@@ -28,14 +44,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     connection. A test can therefore point `get_db` at a database of its own, and a
     deployment whose `DATABASE_URL` names a server that is not up fails where you can
     read the error, not while pytest collects the files.
+
+    Also seeds the two platform-provided accounts (bootstrap admin, smoke-test patient)
+    -- idempotently, and only when their environment variables are set. See `app.seed`.
     """
     Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        seed_bootstrap_users(db)
+    finally:
+        db.close()
     yield
 
 
 app = FastAPI(
-    title="MediBook \u2013 Doctor Appointment & Consultation Management Systemm",
-    description="Develop a web-based healthcare appointment management application where patients can search for doctors based on their disease, symptoms, or medical specialization, view available doctors and their consultation time slots, and book, reschedule, or cancel appointments. Doctors can manage their availability, view scheduled appointments, maintain patient consultation records, and update consultation statuses. The system should support role-based access for patients, doctors, and administrators, with an admin dashboard to manage doctors, specializations, and appointments. The application must use predefined disease-to-specialization mappings to help patients find relevant doctors, without using AI, LLMs, or machine learning. It should prevent double bookings and display real-time appointment availability. **No payment gateway or online payment functionality is required.**",
+    title="MediBook – Doctor Appointment & Consultation Management Systemm",
+    description=APP_DESCRIPTION,
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -53,6 +77,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+for _router in all_routers:
+    app.include_router(_router)
 
 
 @app.get("/health")

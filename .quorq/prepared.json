@@ -1,0 +1,54 @@
+{
+  "key": {
+    "app_design_id": "a8ec77d1-5dbb-4397-a8f5-bd01e3179653",
+    "app_design_version": 1,
+    "architecture_document_id": "73389e09-a76a-4a3e-bbb0-6ed1999ff5e4",
+    "architecture_version": 1
+  },
+  "outcome": "prepared",
+  "packages": [
+    {
+      "ecosystem": "pypi",
+      "installed_version": "5.7.0",
+      "name": "celery",
+      "status": "installed",
+      "version": ">=5.3"
+    },
+    {
+      "ecosystem": "pypi",
+      "installed_version": "6.12.5",
+      "name": "sendgrid",
+      "status": "installed",
+      "version": ">=6.11"
+    },
+    {
+      "ecosystem": "pypi",
+      "installed_version": "1.7.4",
+      "name": "passlib",
+      "status": "installed",
+      "version": ">=1.7.4"
+    },
+    {
+      "ecosystem": "pypi",
+      "installed_version": "2.4.0",
+      "name": "email-validator",
+      "status": "installed",
+      "version": ">=2.0"
+    },
+    {
+      "ecosystem": "npm",
+      "error": "already provided by the scaffold",
+      "name": "react-router-dom",
+      "status": "skipped",
+      "version": ">=6"
+    },
+    {
+      "ecosystem": "npm",
+      "error": "already provided by the scaffold",
+      "name": "date-fns",
+      "status": "skipped",
+      "version": ">=3"
+    }
+  ],
+  "prepared_by_run": "01b31ef2-f214-419a-a8ec-cc59b6e6a841"
+}
