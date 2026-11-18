@@ -11,7 +11,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app import models  # noqa: F401 -- imported so the tables register before create_all
 from app.database import Base, SessionLocal, engine
@@ -47,8 +49,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     Also seeds the two platform-provided accounts (bootstrap admin, smoke-test patient)
     -- idempotently, and only when their environment variables are set. See `app.seed`.
+
+    `users` and `sessions` now have their own Alembic migration (0001); creating them
+    here too would collide with `alembic upgrade head` on a database that has not
+    create_all-ed them yet, so this only creates the tables that still have none.
     """
-    Base.metadata.create_all(bind=engine)
+    _migrated_tables = {"users", "sessions"}
+    _tables = [t for t in Base.metadata.sorted_tables if t.name not in _migrated_tables]
+    Base.metadata.create_all(bind=engine, tables=_tables)
     db = SessionLocal()
     try:
         seed_bootstrap_users(db)
@@ -80,6 +88,18 @@ app.add_middleware(
 
 for _router in all_routers:
     app.include_router(_router)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(
+    request: object, exc: RequestValidationError
+) -> JSONResponse:
+    """Per-field {field, message} entries (AC-003), not FastAPI's default shape."""
+    errors = []
+    for err in exc.errors():
+        loc = [str(part) for part in err["loc"] if part != "body"]
+        errors.append({"field": ".".join(loc) or "body", "message": err["msg"]})
+    return JSONResponse(status_code=422, content={"detail": errors})
 
 
 @app.get("/health")

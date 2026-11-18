@@ -5,11 +5,14 @@ email provider configuration.
 Stubs only -- see `app.routers.auth` for why.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.deps import require_role
 from app.schemas import StubResponse
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+_require_admin = Depends(require_role("admin"))
 
 
 @router.post("/users", response_model=StubResponse)
@@ -78,7 +81,7 @@ async def delete_mapping() -> StubResponse:
 
 
 @router.get("/audit-logs", response_model=StubResponse)
-async def list_audit_logs() -> StubResponse:
+async def list_audit_logs(_user=_require_admin) -> StubResponse:
     return StubResponse(endpoint="GET /admin/audit-logs")
 
 

@@ -9,16 +9,18 @@ from fastapi.testclient import TestClient
 
 
 def test_stub_endpoints_resolve(client: TestClient) -> None:
-    assert client.post("/auth/register").status_code == 200
-    assert client.post("/auth/login").status_code == 200
-    assert client.post("/auth/logout").status_code == 204
+    # /auth/register, /auth/login and /auth/logout are implemented (US-002-1);
+    # see tests/integration/test_auth.py for their real behaviour.
     assert client.get("/me/profile").status_code == 200
     assert client.get("/search/doctors").status_code == 200
     assert client.get("/doctors/doc-1/slots").status_code == 200
     assert client.post("/appointments").status_code == 201
-    assert client.get("/doctor/appointments").status_code == 200
+    # [AC-011] [AC-012] /doctor/appointments and /admin/audit-logs enforce
+    # require_role("doctor") / require_role("admin"): an unauthenticated
+    # caller is denied, not routed through to a 200 stub response.
+    assert client.get("/doctor/appointments").status_code == 401
     assert client.get("/admin/specializations").status_code == 200
-    assert client.get("/admin/audit-logs").status_code == 200
+    assert client.get("/admin/audit-logs").status_code == 401
 
 
 def test_every_approved_path_is_in_the_openapi_document(client: TestClient) -> None:
