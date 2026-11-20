@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.database import get_db
 from app.deps import get_current_session, get_current_user
+from app.models import STAFF_PASSWORD_PLACEHOLDER, User
 from app.models import Session as SessionModel
-from app.models import User
 from app.schemas import (
     AuthResponse,
     FirstLoginPasswordRequest,
@@ -88,7 +88,7 @@ async def set_first_login_password(
 ) -> AuthResponse:
     already_set = HTTPException(status_code=400, detail="Password is already set")
     user = db.query(User).filter(User.email == payload.email).first()
-    if user is None or user.password_status != "<set-at-first-login>":
+    if user is None or user.password_status != STAFF_PASSWORD_PLACEHOLDER:
         raise already_set
 
     user.password_hash = hash_password(payload.password)

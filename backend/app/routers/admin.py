@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.database import get_db
 from app.deps import require_role
-from app.models import User
+from app.models import STAFF_PASSWORD_PLACEHOLDER, User
 from app.schemas import (
     AdminCreateUserRequest,
     AdminUserListOut,
@@ -25,8 +25,6 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 _require_admin = Depends(require_role("admin"))
 _db = Depends(get_db)
-
-_STAFF_PLACEHOLDER = "<set-at-first-login>"
 
 
 def _admin_user_out(user: User) -> AdminUserOut:
@@ -58,7 +56,7 @@ async def provision_user(
         role=payload.role,
         full_name=payload.full_name,
         is_active=True,
-        password_status=_STAFF_PLACEHOLDER,
+        password_status=STAFF_PASSWORD_PLACEHOLDER,
     )
     db.add(user)
     db.commit()
