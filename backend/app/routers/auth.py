@@ -13,7 +13,13 @@ from app.database import get_db
 from app.deps import get_current_session, get_current_user
 from app.models import Session as SessionModel
 from app.models import User
-from app.schemas import AuthResponse, LoginRequest, RegisterRequest, UserOut
+from app.schemas import (
+    AuthResponse,
+    FirstLoginPasswordRequest,
+    LoginRequest,
+    RegisterRequest,
+    UserOut,
+)
 from app.security import hash_password, verify_password
 from app.sessions import create_session
 
@@ -63,13 +69,35 @@ async def login(payload: LoginRequest, db: DBSession = _db) -> AuthResponse:
     # account (NFR-003): nothing here tells those three cases apart from outside.
     generic_failure = HTTPException(status_code=401, detail="Email or password is incorrect.")
     user = db.query(User).filter(User.email == payload.email).first()
-    if user is None or not verify_password(payload.password, user.password_hash):
+    # A provisioned staff account has no password_hash until first-login-password is
+    # set: treat it the same as a wrong password rather than crash verify_password.
+    if user is None or user.password_hash is None:
+        raise generic_failure
+    if not verify_password(payload.password, user.password_hash):
         raise generic_failure
     if not user.is_active:
         raise generic_failure
 
     token = create_session(db, user)
     return AuthResponse(token=token, user=_user_out(user))
+
+
+@router.post("/auth/first-login-password", response_model=AuthResponse)
+async def set_first_login_password(
+    payload: FirstLoginPasswordRequest, db: DBSession = _db
+) -> AuthResponse:
+    already_set = HTTPException(status_code=400, detail="Password is already set")
+    user = db.query(User).filter(User.email == payload.email).first()
+    if user is None or user.password_status != "<set-at-first-login>":
+        raise already_set
+
+    user.password_hash = hash_password(payload.password)
+    user.password_status = "set"
+    db.commit()
+    db.refresh(user)
+
+    session_token = create_session(db, user)
+    return AuthResponse(token=session_token, user=_user_out(user))
 
 
 @router.post("/auth/logout", status_code=204)

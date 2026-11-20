@@ -3,7 +3,7 @@ import * as React from "react";
 import { Icons } from "@/lib/icons";
 import { brand } from "@/lib/brand";
 import { useNavigate } from "@/lib/navigate";
-import { ApiError } from "@/lib/api";
+import { ApiError, apiFetch } from "@/lib/api";
 import { ROLE_HOME, useAuth } from "@/lib/auth";
 
 const { AlertCircle, CheckCircle } = Icons;
@@ -17,7 +17,10 @@ const ROLE_NOTE =
 const TABS = [
   { key: "sign-in", label: "Sign in", wf: "i-1-0-0" },
   { key: "register", label: "Register as a patient", wf: "i-1-0-1" },
+  { key: "first-login", label: "Set your password", wf: "i-1-0-2" },
 ];
+
+const ALREADY_SET_ERROR = "password is already set - sign in instead";
 
 const tint = (pct: number) =>
   `color-mix(in srgb, ${brand.primaryColor} ${pct}%, ${brand.backgroundColor})`;
@@ -171,11 +174,15 @@ function SubmitButton({
   );
 }
 
+type FirstLoginErrors = { email?: string; password?: string };
+
 export default function Screen() {
   const navigate = useNavigate();
   const { login, register, sessionNotice, clearSessionNotice } = useAuth();
   const [tab, setTab] = React.useState("sign-in");
-  const [submitting, setSubmitting] = React.useState<"sign-in" | "register" | null>(null);
+  const [submitting, setSubmitting] = React.useState<"sign-in" | "register" | "first-login" | null>(
+    null,
+  );
 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -189,6 +196,11 @@ export default function Screen() {
     confirm: "",
   });
   const [regErrors, setRegErrors] = React.useState<RegisterErrors>({});
+
+  const [flEmail, setFlEmail] = React.useState("");
+  const [flPassword, setFlPassword] = React.useState("");
+  const [flErrors, setFlErrors] = React.useState<FirstLoginErrors>({});
+  const [flAlreadySet, setFlAlreadySet] = React.useState(false);
 
   const panel = { backgroundColor: tint(6), borderRadius: "200px 200px 0 0" };
   const panelFoot = { backgroundColor: tint(6), borderRadius: "0 0 24px 24px" };
@@ -242,6 +254,42 @@ export default function Screen() {
             }
           }
           setRegErrors((prev) => ({ ...prev, ...fieldErrors }));
+        }
+      }
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  const onSetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
+    const next: FirstLoginErrors = {};
+    if (!flEmail.trim()) next.email = "an email address is needed.";
+    if (flPassword.length < 8) next.password = "at least 8 characters";
+    setFlErrors(next);
+    setFlAlreadySet(false);
+    if (Object.keys(next).length) return;
+    setSubmitting("first-login");
+    try {
+      await apiFetch("/auth/first-login-password", {
+        method: "POST",
+        body: JSON.stringify({ email: flEmail.trim(), password: flPassword }),
+      });
+      const user = await login(flEmail.trim(), flPassword);
+      navigate(ROLE_HOME[user.role]);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 400) {
+          setFlAlreadySet(true);
+        } else if (err.status === 422 && Array.isArray(err.detail)) {
+          const fieldErrors: FirstLoginErrors = {};
+          for (const item of err.detail as Array<{ field: string; message: string }>) {
+            if (item && typeof item.field === "string") {
+              fieldErrors[item.field as keyof FirstLoginErrors] = item.message;
+            }
+          }
+          setFlErrors((prev) => ({ ...prev, ...fieldErrors }));
         }
       }
     } finally {
@@ -469,6 +517,75 @@ export default function Screen() {
                 />
               </form>
             </section>
+
+            <section
+              data-wf="b-2-2"
+              id="panel-first-login"
+              role="tabpanel"
+              aria-labelledby="tab-first-login"
+              tabIndex={0}
+              hidden={tab !== "first-login"}
+              className="atrium-rise atrium-focus w-full px-9 pt-14 md:w-1/2"
+              style={panel}
+            >
+              <h2 className="text-center text-2xl italic" style={{ fontFamily: brand.fontHeading }}>
+                Set your password
+              </h2>
+              <p className="mt-2 text-center text-sm lowercase" style={MUTED_STYLE}>
+                for a doctor or admin account the clinic just provisioned for you
+              </p>
+
+              <form
+                id="first-login-form"
+                className="mt-7 space-y-4 text-left"
+                onSubmit={onSetPassword}
+                noValidate
+              >
+                <Field
+                  id="fl-email"
+                  wf="i-2-2-0"
+                  label="Email"
+                  type="email"
+                  autoComplete="email"
+                  value={flEmail}
+                  onChange={(e) => {
+                    setFlEmail(e.target.value);
+                    setFlAlreadySet(false);
+                    setFlErrors((prev) => (prev.email ? { ...prev, email: undefined } : prev));
+                  }}
+                  error={flErrors.email}
+                />
+                <Field
+                  id="fl-password"
+                  wf="i-2-2-1"
+                  label="New password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={flPassword}
+                  onChange={(e) => {
+                    setFlPassword(e.target.value);
+                    setFlAlreadySet(false);
+                    setFlErrors((prev) =>
+                      prev.password ? { ...prev, password: undefined } : prev,
+                    );
+                  }}
+                  error={flErrors.password}
+                  hint="8 characters or more; stored hashed, never in plain text"
+                />
+              </form>
+
+              {flAlreadySet ? (
+                <p
+                  role="alert"
+                  aria-live="polite"
+                  className="mt-4 flex items-start gap-1.5 text-xs"
+                  style={{ color: brand.primaryColor }}
+                >
+                  <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span>{ALREADY_SET_ERROR}</span>
+                </p>
+              ) : null}
+            </section>
           </div>
 
           <div className="flex flex-col gap-8 md:flex-row md:justify-center">
@@ -509,6 +626,26 @@ export default function Screen() {
               />
               <p className="mt-6 text-center text-xs lowercase" style={MUTED_STYLE}>
                 you will be asked for health-data consent before your first booking.
+              </p>
+            </div>
+
+            <div
+              data-wf="b-3-2"
+              id="actions-first-login"
+              hidden={tab !== "first-login"}
+              className="atrium-rise w-full px-9 pb-9 md:w-1/2"
+              style={panelFoot}
+            >
+              <SubmitButton
+                wf="b-3-2-btn"
+                label="Set password and sign in"
+                busyLabel="setting your password"
+                busy={submitting === "first-login"}
+                formId="first-login-form"
+                disabled={!!submitting}
+              />
+              <p className="mt-6 text-center text-xs lowercase" style={MUTED_STYLE}>
+                already set a password? use the sign in tab instead.
               </p>
             </div>
           </div>

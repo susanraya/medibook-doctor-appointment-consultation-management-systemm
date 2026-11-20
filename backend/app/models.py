@@ -36,10 +36,13 @@ class User(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     phone: Mapped[str] = mapped_column(String(32), default="")
-    password_hash: Mapped[str] = mapped_column(String(255))
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     role: Mapped[str] = mapped_column(String(16))  # patient | doctor | admin
     full_name: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # 'set' for a real credential, or the literal '<set-at-first-login>' placeholder
+    # for a staff account an admin provisioned but that has not signed in yet (US-003).
+    password_status: Mapped[str] = mapped_column(String(32), default="set")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
 

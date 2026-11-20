@@ -138,6 +138,72 @@ describe("SignIn", () => {
     );
   });
 
+  it("the first-login flow stores the token and routes to the role dashboard on 200", async () => {
+    stubFetch((url) => {
+      if (url.endsWith("/auth/first-login-password")) {
+        return new Response(
+          JSON.stringify({
+            token: "tok-first-login-set",
+            user: {
+              id: "u9",
+              full_name: "Dr. Imogen Hartley",
+              email: "i.hartley@meadowlane.health",
+              phone: "01234567",
+              role: "doctor",
+              is_active: true,
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/auth/login")) {
+        return new Response(
+          JSON.stringify({
+            token: "tok-signed-in",
+            user: {
+              id: "u9",
+              full_name: "Dr. Imogen Hartley",
+              email: "i.hartley@meadowlane.health",
+              phone: "01234567",
+              role: "doctor",
+              is_active: true,
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    });
+    const user = userEvent.setup();
+    const { container } = renderSignIn();
+    await user.click(screen.getByRole("tab", { name: "Set your password" }));
+    await user.type(field(container, "fl-email"), "i.hartley@meadowlane.health");
+    await user.type(field(container, "fl-password"), "brandnewpass1");
+    await user.click(screen.getByRole("button", { name: "Set password and sign in" }));
+    await waitFor(() => expect(getSessionToken()).toBe("tok-signed-in"));
+  });
+
+  it("a 400 on the first-login flow shows 'password is already set - sign in instead'", async () => {
+    stubFetch((url) => {
+      if (url.endsWith("/auth/first-login-password")) {
+        return new Response(JSON.stringify({ detail: "Password is already set" }), {
+          status: 400,
+        });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    });
+    const user = userEvent.setup();
+    const { container } = renderSignIn();
+    await user.click(screen.getByRole("tab", { name: "Set your password" }));
+    await user.type(field(container, "fl-email"), "i.hartley@meadowlane.health");
+    await user.type(field(container, "fl-password"), "brandnewpass1");
+    await user.click(screen.getByRole("button", { name: "Set password and sign in" }));
+    expect(
+      await screen.findByText("password is already set - sign in instead"),
+    ).toBeInTheDocument();
+    expect(getSessionToken()).toBeNull();
+  });
+
   it("[AC-005] a 401 on sign-in shows exactly one generic message and no field hint", async () => {
     stubFetch((url) => {
       if (url.endsWith("/auth/login")) {

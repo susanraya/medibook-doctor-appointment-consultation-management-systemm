@@ -4,6 +4,8 @@ One pair per entity in the approved data model, plus the placeholder every
 generated route returns until it has been implemented.
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -37,6 +39,48 @@ class UserOut(BaseModel):
 class AuthResponse(BaseModel):
     token: str
     user: UserOut
+
+
+class AdminCreateUserRequest(BaseModel):
+    """POST /admin/users's body: a doctor or admin account (US-003)."""
+
+    full_name: str = Field(min_length=1, max_length=255)
+    email: EmailStr
+    phone: str = Field(min_length=6, max_length=32, pattern=r"^[0-9+\-() ]+$")
+    role: Literal["doctor", "admin"]
+
+
+class AdminUserOut(BaseModel):
+    """A provisioned staff account. password_status is a placeholder or 'set',
+    never a credential (NFR-010)."""
+
+    id: str
+    full_name: str
+    email: str
+    phone: str
+    role: str
+    is_active: bool
+    password_status: str
+
+
+class AdminUserListOut(BaseModel):
+    users: list[AdminUserOut]
+
+
+class UserStatusUpdateRequest(BaseModel):
+    is_active: bool
+
+
+class UserStatusOut(BaseModel):
+    id: str
+    is_active: bool
+
+
+class FirstLoginPasswordRequest(BaseModel):
+    """POST /auth/first-login-password's body."""
+
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=255)
 
 
 class StubResponse(BaseModel):
