@@ -9,10 +9,10 @@ Built from recorded links, not written by a model: requirement key → plan item
 <!-- sdlc:auto:start matrix -->
 | Requirement | Epic | Title | Plan items | Sprint | Design | Code | Commits | Ticket | Test step | Tests | Result | AC tests | Deployed |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| US-001 | EPIC-001 | Patient self-registration | US-001 | 1 | POST /auth/register, api, db, users, web | — | — | skipped | not run | 0 | No tests | 0/3 tested · 0/3 passing | — |
-| US-002 | EPIC-001 | Sign in and sign out | US-002 | 1 | POST /auth/login, POST /auth/logout, api, db, sessions, users, web | backend/alembic.ini, backend/app/deps.py, backend/app/main.py, backend/app/routers/admin.py, backend/app/routers/auth.py +23 more | — | ready_for_review | succeeded | 0 | No tests | 0/4 tested · 0/4 passing | — |
-| US-003 | EPIC-001 | Administrator provisions doctor and admin accounts | US-003 | 1 | POST /admin/users, api, db, users | — | — | planned | not run | 0 | No tests | 0/3 tested · 0/3 passing | — |
-| US-004 | EPIC-001 | Role-based access enforcement | US-004 | 1 | api, sessions, users, web | — | — | skipped | not run | 0 | No tests | 0/3 tested · 0/3 passing | — |
+| US-001 | EPIC-001 | Patient self-registration | US-001 | 1 | POST /auth/register, api, db, users, web | — | 76235be | delivered | not run | 0 | No tests | 0/3 tested · 0/3 passing | — |
+| US-002 | EPIC-001 | Sign in and sign out | US-002 | 1 | POST /auth/login, POST /auth/logout, api, db, sessions, users, web | backend/alembic.ini, backend/app/deps.py, backend/app/main.py, backend/app/routers/admin.py, backend/app/routers/auth.py +23 more | 76235be | delivered | succeeded | 0 | No tests | 0/4 tested · 0/4 passing | — |
+| US-003 | EPIC-001 | Administrator provisions doctor and admin accounts | US-003 | 1 | POST /admin/users, api, db, users | backend/app/models.py, backend/app/routers/admin.py, backend/app/routers/auth.py, backend/app/schemas.py, backend/migrations/versions/0002_add_password_status.py +7 more | fe3a60e | delivered | succeeded | 0 | No tests | 0/3 tested · 0/3 passing | — |
+| US-004 | EPIC-001 | Role-based access enforcement | US-004 | 1 | api, sessions, users, web | — | 76235be | delivered | not run | 0 | No tests | 0/3 tested · 0/3 passing | — |
 | US-005 | EPIC-002 | Patient manages own profile | US-005 | 2 | GET /me/profile, PUT /me/profile, api, db, users, web | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
 | US-006 | EPIC-002 | Patient consent capture | US-006 | 2 | POST /me/consent, api, db, patient_consents, web | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
 | US-007 | EPIC-002 | Doctor manages own profile | US-007 | 3 | GET /me/profile, PUT /me/profile, api, db, doctor_profiles, specializations, web | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
