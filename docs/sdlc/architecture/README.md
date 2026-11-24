@@ -5,179 +5,179 @@
 <!-- sdlc:auto:start narrative -->
 ## Overview
 
-### ARCH-001 · approved · source: architecture:summary
+### ARCH-OVERVIEW · approved · source: architecture:summary
 
-Overall approved architecture for MediBook: a single-clinic pilot web app for patient self-registration, disease/symptom or specialization doctor search, real-time slot booking/reschedule/cancel with double-booking prevention, doctor availability and consultation record management, and admin oversight.
+Approved v1 architecture for MediBook: a responsive web app for a single-clinic pilot covering patient self-registration, disease/specialization doctor search, real-time slot booking/reschedule/cancel, doctor availability and consultation records, and admin oversight.
 
-Version 1, status approved. Built on React 19 SPA + FastAPI 0.115 API + PostgreSQL 16 on AWS. Booking integrity enforced via PostgreSQL row-level locking (SELECT ... FOR UPDATE). Notifications (confirmation, reschedule, cancellation, scheduled reminders) are dispatched asynchronously by a Redis-backed Celery worker through SendGrid so bookings never block on email delivery. Access control uses server-side opaque-token sessions with role-based authorization for patients, doctors and admins. Explicitly out of scope: AI/ML (disease-to-specialization matching is a static predefined mapping table, not inference), telehealth, native mobile apps, and online payment. Health data is protected with encryption in transit and at rest, explicit patient consent capture, and audit logging as general best practice (not asserted as certified regulatory compliance).
+MediBook is built as a React 19 SPA calling a FastAPI 0.115 API backed by PostgreSQL 16, deployed on AWS. Booking integrity uses PostgreSQL row-level locking; a Redis-backed Celery worker sends confirmation/reschedule/cancellation emails and scheduled reminders via SendGrid without blocking bookings. Sessions are server-side opaque tokens for role-based access (patient/doctor/admin). Explicitly out of scope: AI/ML, telehealth, native mobile app, and online payment. Health data protections noted as general best practice: encryption in transit and at rest, consent capture, and audit logging.
 
-### ARCH-COMP-WEB · approved · source: architecture:component:web
+### ARCH-WEB · approved · source: architecture:component:web
 
-MediBook Web SPA: the single responsive React 19 front end serving patients, doctors and admins.
+MediBook Web SPA built in React 19, serving patients, doctors and admins from one responsive codebase.
 
-Single-page application covering registration/sign-in, doctor search, live slot calendars, booking/reschedule/cancel flows, patient and doctor dashboards, consultation record entry, and all admin management screens. Responsive design runs in any mobile browser, satisfying the no-native-app decision. Reads its API base URL from the VITE_API_BASE_URL environment variable and authenticates every API call by sending Authorization: Bearer <token>, where <token> is the opaque session token issued at login.
+Single-page app covering registration/sign-in, doctor search, slot calendars, booking/reschedule/cancel flows, patient/doctor/admin dashboards, consultation record entry, and admin management screens. Reads the API base URL from the VITE_API_BASE_URL environment variable and sends Authorization: Bearer <token> on every API call. Runs in any mobile browser, satisfying the no-native-app decision.
 
-**Related:** ARCH-001
+### ARCH-API · approved · source: architecture:component:api
 
-### ARCH-COMP-API · approved · source: architecture:component:api
+FastAPI 0.115 service holding all business logic and authorization for MediBook.
 
-MediBook API: the FastAPI 0.115 service holding all business logic, authorization, booking integrity, and the static disease-to-specialization lookup.
+Owns authentication and opaque-token session management, role-based authorization, the static disease-to-specialization mapping lookup, availability/slot generation, transactional booking with double-booking prevention, consultation records, admin management functions, audit logging, and enqueuing of notification jobs onto the Redis queue.
 
-Responsibilities: authentication and opaque-token session issuance/revocation; role-based authorization; static disease/symptom-to-specialization mapping lookup; availability and slot generation; transactional booking with double-booking prevention; consultation record access control; admin management of users, specializations, mappings and appointments; audit logging; and enqueuing notification jobs onto the Redis queue for the worker. Exposed endpoints, grouped by area: Auth - POST /auth/register (patient self-registration, rejects duplicate email/invalid fields, password stored hashed), POST /auth/login (returns opaque session token in body on success, generic failure message otherwise), POST /auth/logout (revokes current session server-side); Admin provisioning - POST /admin/users (admin creates doctor/admin accounts; password field recorded only as placeholder <set-at-first-login>, never a real credential); Profile - GET /me/profile, PUT /me/profile (email uniqueness enforced; doctor specialization limited to admin-defined list), POST /me/consent (patient health-data consent stored with timestamp); Search & slots - GET /search/doctors (disease/symptom static-mapping or specialization search; returns active doctors or a no-mapping message), GET /doctors/{doctor_id}/slots (real-time unbooked future slots); Availability - PUT /me/availability (doctor sets recurring weekly hours and slot length; overlaps merged/rejected; warns if an existing booking affected), PUT /admin/doctors/{doctor_id}/availability (admin override/block with warning on affected bookings); Appointments - POST /appointments (books a whole slot with server-side locking, requires consent, no payment), PUT /appointments/{id}/reschedule (moves to another free slot under same locking, releases original slot), POST /appointments/{id}/cancel (frees slot; past/completed appointments cannot be cancelled), GET /me/appointments (patient dashboard), GET /doctor/appointments (doctor dashboard with empty-state); Consultation & status - PUT /appointments/{id}/consultation (treating doctor saves notes/diagnosis/prescription, access denied to non-treating doctors, audit-logged), GET /appointments/{id}/consultation (visible only to owning patient, treating doctor, admins; audit-logged), PUT /appointments/{id}/status (scheduled/completed/no_show, invalid transitions rejected); Admin oversight - GET /admin/appointments (filters by doctor/patient/date/status), PUT /admin/appointments/{id}/reassign (reassign doctor/slot under same locking, parties notified), GET/POST/PUT/DELETE /admin/specializations (deletion warns/blocks on dependencies), GET/POST/PUT/DELETE /admin/mappings (rejects mapping to non-existent specialization), PUT /admin/doctors/{doctor_id}/status (deactivate/reactivate removes from search, ends sessions, flags appointments), GET /admin/audit-logs (review access/change events), PUT /admin/email-settings (configures email provider API key, stored as secret, never displayed).
+### ARCH-WORKER · approved · source: architecture:component:worker
 
-**Related:** ARCH-001, ARCH-COMP-DB, ARCH-COMP-QUEUE
+Celery-based Notification Worker that sends appointment emails and reminders asynchronously.
 
-### ARCH-COMP-WORKER · approved · source: architecture:component:worker
+Consumes the Redis queue and runs scheduled jobs: sends booking confirmation, reschedule and cancellation emails; schedules and dispatches upcoming-appointment reminders; logs failed sends for retry/review so booking operations are never blocked by email delivery.
 
-Notification Worker: a Celery-on-Python background worker (Redis broker) that sends all transactional and reminder emails without blocking bookings.
+### ARCH-DB · approved · source: architecture:component:db
 
-Consumes jobs from the Redis queue and runs scheduled jobs: booking confirmation, reschedule and cancellation emails; schedules and sends upcoming-appointment reminders at a configured lead time; logs failed sends for retry/review. Runs independently of the booking transaction so email delivery issues never affect booking success.
+PostgreSQL 16 is the system of record for all MediBook data.
 
-**Related:** ARCH-001, ARCH-COMP-QUEUE, ARCH-COMP-EMAIL
+Stores users, profiles, consent, specializations, disease mappings, availability, slots, appointments, consultation records, sessions, notification log and audit entries. Enforces booking integrity via row-level locking and transactions (SELECT ... FOR UPDATE on the slot row) and is encrypted at rest.
 
-### ARCH-COMP-DB · approved · source: architecture:component:db
+### ARCH-QUEUE · approved · source: architecture:component:queue
 
-PostgreSQL 16 database: system of record for all MediBook data, enforcing booking integrity via row-level locking and transactions, encrypted at rest.
+Redis 7 acts as the message broker and scheduling backend for the notification worker.
 
-Entities: users (id, email, phone, password_hash, role, full_name, is_active, created_at); sessions (token, user_id, created_at, last_activity_at, expires_at, revoked_at); patient_consents (id, patient_id, consented, consented_at); specializations (id, name, is_active); doctor_profiles (id, user_id, specialization_id, bio, contact); disease_mappings (id, term); disease_mapping_specializations (mapping_id, specialization_id); doctor_availability (id, doctor_id, day_of_week, start_time, end_time, slot_length_minutes); appointment_slots (id, doctor_id, start_at, end_at, status); appointments (id, slot_id, patient_id, doctor_id, status, created_at); consultation_records (id, appointment_id, patient_id, doctor_id, notes, diagnosis, prescription, updated_at); notification_log (id, appointment_id, kind, status, error, created_at); audit_logs (id, user_id, action, entity_type, entity_id, created_at).
+Enables asynchronous, non-blocking dispatch of confirmation, reschedule, cancellation and reminder emails by decoupling the API's booking transaction from SendGrid delivery.
 
-**Related:** ARCH-001, ARCH-COMP-API
+### ARCH-EMAIL · approved · source: architecture:component:email
 
-### ARCH-COMP-QUEUE · approved · source: architecture:component:queue
+SendGrid provides transactional email delivery for all patient-facing appointment notifications.
 
-Redis 7 queue: message broker and scheduling backend decoupling notification/reminder dispatch from the booking request path.
-
-Used by the API to enqueue notification jobs and by the worker to consume them and schedule reminder sends, ensuring booking, reschedule and cancellation calls return without waiting on email delivery.
-
-**Related:** ARCH-001, ARCH-COMP-WORKER
-
-### ARCH-COMP-EMAIL · approved · source: architecture:component:email
-
-SendGrid: external SaaS provider for transactional email delivery.
-
-Delivers booking confirmation, reschedule, cancellation and reminder emails to patients' registered addresses on behalf of the Notification Worker. The provider API key is configured by an admin via PUT /admin/email-settings and stored as a secret, never displayed.
-
-**Related:** ARCH-001, ARCH-COMP-WORKER
+Delivers booking confirmation, reschedule, cancellation and reminder messages to patients' registered email addresses; the worker logs failures for retry/review rather than surfacing them to the booking flow.
 
 ### ARCH-CP-BOOKING · approved · source: architecture:critical-path:booking
 
-Book appointment with double-booking prevention: the core transactional flow guaranteeing a slot is booked exactly once.
+Describes how MediBook prevents double-booking when a patient books a free future slot.
 
-A consented patient books a free future slot. The API opens a transaction, locks the slot row (SELECT ... FOR UPDATE), verifies it is still free, creates the appointment and marks the slot booked, then enqueues a confirmation email. Concurrent submissions for the same slot serialize on the lock so only one succeeds; the losing request is told the slot is no longer available. No payment is requested.
-
-**Related:** ARCH-COMP-API, ARCH-COMP-DB, ARCH-COMP-WORKER
+A consented patient books a free future slot. The API opens a transaction, locks the slot row (SELECT ... FOR UPDATE), verifies it is still free, creates the appointment, marks the slot booked, then enqueues a confirmation email. Concurrent submissions for the same slot serialize on the lock so only one succeeds; the losing request is told the slot is no longer available. No payment is requested as part of this flow.
 
 ### ARCH-CP-SEARCH · approved · source: architecture:critical-path:search
 
-Search doctors by disease or symptom via static mapping: non-AI lookup that resolves a patient's term to specializations and active doctors.
+Describes the non-AI, mapping-based doctor search by disease or symptom.
 
-A patient enters a disease or symptom term. The API looks it up in the predefined mapping table (case-insensitive exact/alias match), resolves one or more specializations, and returns active doctors in those specializations. If no mapping exists the patient is told and offered browse-by-specialization instead. Explicitly implemented without AI/ML.
-
-**Related:** ARCH-COMP-API, ARCH-COMP-DB
+A patient enters a disease or symptom term. The API looks it up in the predefined disease_mappings table using a case-insensitive exact/alias match, resolves one or more specializations, and returns active doctors in those specializations. If no mapping exists, the patient is told and offered browse-by-specialization instead. Explicitly no AI/ML is used in this lookup.
 
 ### ARCH-CP-LOGIN · approved · source: architecture:critical-path:login
 
-Sign in with opaque-token session: authentication flow underlying all role-based access.
+Describes the opaque-token session sign-in flow used for role-based access.
 
-A user signs in with email and password. The API verifies the password hash, checks the account is active, creates a session row with an opaque token and inactivity expiry, and returns the token in the response body. The SPA stores it and sends it as a Bearer token on subsequent calls. Sign-out, inactivity expiry, and account deactivation all revoke the session server-side.
-
-**Related:** ARCH-COMP-API, ARCH-COMP-DB
+A user signs in with email and password. The API verifies the password hash, checks the account is active, creates a session row with an opaque token and an inactivity expiry, and returns the token in the response body. The SPA stores it and sends it as a Bearer token on subsequent calls. Sign-out, inactivity expiry, and account deactivation all revoke the session server-side.
 
 ### ARCH-CP-REMINDER · approved · source: architecture:critical-path:reminder
 
-Scheduled reminder email: asynchronous reminder flow that does not affect booking reliability.
+Describes the scheduled appointment reminder email flow.
 
-On booking confirmation the worker schedules a reminder for the configured lead time. When due, the worker checks the appointment is still confirmed (not cancelled) and sends the reminder via SendGrid. If SendGrid fails, the attempt is logged for retry/review and the booking itself is unaffected.
+On booking confirmation, the worker schedules a reminder for a configured lead time. When due, the worker checks the appointment is still confirmed (not cancelled) and sends the reminder via SendGrid. If SendGrid fails, the attempt is logged for retry and the underlying booking is unaffected.
 
-**Related:** ARCH-COMP-WORKER, ARCH-COMP-QUEUE, ARCH-COMP-EMAIL
+### ARCH-DATA-MODEL · approved · source: architecture:entities
 
-### ARCH-TD-FRONTEND · approved · source: architecture:technology:frontend
+Relational data model underpinning MediBook, covering identity, scheduling, clinical records and auditing.
 
-Frontend framework decision: React 19, chosen over Vue and Angular.
+Entities: users (id, email, phone, password_hash, role, full_name, is_active, created_at); sessions (token, user_id, created_at, last_activity_at, expires_at, revoked_at); patient_consents (id, patient_id, consented, consented_at); specializations (id, name, is_active); doctor_profiles (id, user_id, specialization_id, bio, contact); disease_mappings (id, term); disease_mapping_specializations (mapping_id, specialization_id); doctor_availability (id, doctor_id, day_of_week, start_time, end_time, slot_length_minutes); appointment_slots (id, doctor_id, start_at, end_at, status); appointments (id, slot_id, patient_id, doctor_id, status, created_at); consultation_records (id, appointment_id, patient_id, doctor_id, notes, diagnosis, prescription, updated_at); notification_log (id, appointment_id, kind, status, error, created_at); audit_logs (id, user_id, action, entity_type, entity_id, created_at).
 
-Builds the single responsive SPA serving patients on phones, doctors managing their day, and the admin dashboard, including live slot calendars and record entry. Runs in any mobile browser, meeting the project's no-native-app decision.
+### ARCH-EP-AUTH · approved · source: architecture:endpoints:auth
 
-**Related:** ARCH-COMP-WEB
+Authentication and account-provisioning endpoints.
 
-### ARCH-TD-BACKEND · approved · source: architecture:technology:backend
+POST /auth/register: patient self-registration with email, phone, password; rejects duplicate email or invalid fields; stores password hashed. POST /auth/login: sign in, returns opaque session token in body on success, generic failure message otherwise. POST /auth/logout: revokes the current session token server-side. POST /admin/users: admin provisions a doctor or admin account with password placeholder <set-at-first-login> recorded (not a real credential).
 
-Backend framework decision: FastAPI 0.115, chosen over Django REST Framework and Flask.
+### ARCH-EP-PROFILE · approved · source: architecture:endpoints:profile
 
-Hosts all booking integrity, role-based authorization and the static mapping lookup in clean, typed endpoints, pairing with PostgreSQL row locking to implement the double-booking guard.
+Profile and consent management endpoints.
 
-**Related:** ARCH-COMP-API, ARCH-COMP-DB
+GET /me/profile: view own patient or doctor profile. PUT /me/profile: update own profile; email uniqueness enforced; doctor specialization limited to the admin-defined list. POST /me/consent: patient gives health-data consent, stored with a timestamp.
 
-### ARCH-TD-DATABASE · approved · source: architecture:technology:database
+### ARCH-EP-SEARCH-AVAILABILITY · approved · source: architecture:endpoints:search-availability
 
-Database decision: PostgreSQL 16, chosen over MySQL and SQL Server.
+Doctor search and availability/slot management endpoints.
 
-Transactions and row-level locking (SELECT FOR UPDATE on the slot row) directly implement 'book a slot exactly once'. Holds the relational doctor/specialization/mapping/appointment data and supports encryption at rest for health-data safeguards.
+GET /search/doctors: search doctors by disease/symptom (static mapping) or specialization, returning active doctors or a no-mapping message. GET /doctors/{doctor_id}/slots: real-time list of unbooked future slots for a doctor. PUT /me/availability: doctor sets recurring weekly hours and slot length; overlaps are merged/rejected, with a warning if an existing booking is affected. PUT /admin/doctors/{doctor_id}/availability: admin overrides a doctor's availability or blocks time ranges, warning about affected booked appointments.
 
-**Related:** ARCH-COMP-DB
+### ARCH-EP-BOOKING · approved · source: architecture:endpoints:booking
 
-### ARCH-TD-CLOUD · approved · source: architecture:technology:cloud
+Appointment booking, reschedule, cancellation and dashboard endpoints.
 
-Cloud platform decision: AWS, chosen over GCP and Azure.
+POST /appointments: book a whole slot with server-side double-booking prevention (slot locked FOR UPDATE); requires consent; no payment. PUT /appointments/{id}/reschedule: move an upcoming appointment to another free slot under the same locking rules; original slot released. POST /appointments/{id}/cancel: cancel an upcoming appointment, freeing its slot; completed/past appointments cannot be cancelled. GET /me/appointments: patient dashboard of upcoming and past appointments with doctor, specialization, date/time and status. GET /doctor/appointments: doctor dashboard of scheduled appointments with patient name, date/time, slot and status, with an empty-state when none.
 
-One account provides managed PostgreSQL (RDS with KMS encryption and backups), app/worker hosting, Redis (ElastiCache), and Secrets Manager for the SendGrid key, with audit-friendly access controls, and scales beyond the pilot without re-platforming.
+### ARCH-EP-CONSULTATION · approved · source: architecture:endpoints:consultation
 
-**Related:** ARCH-COMP-DB, ARCH-COMP-QUEUE, ARCH-COMP-API, ARCH-COMP-WORKER
+Consultation record and status-update endpoints, access-controlled and audit-logged.
 
-### ARCH-DEPLOY-WEB · approved · source: architecture:deployment:web
+PUT /appointments/{id}/consultation: treating doctor saves free-text notes, diagnosis and optional prescription; access denied for non-treating doctors; audit-logged. GET /appointments/{id}/consultation: view consultation record, visible only to the owning patient, treating doctor and admins; audit-logged. PUT /appointments/{id}/status: treating doctor updates status (scheduled/completed/no_show); invalid transitions, e.g. completing a cancelled appointment, are rejected.
 
-Web SPA hosting node: static React 19 build served from AWS S3 behind CloudFront.
+### ARCH-EP-ADMIN · approved · source: architecture:endpoints:admin
 
-Deployment node: AWS S3 + CloudFront as the static SPA origin, serving the React 19 production build.
+Administrative oversight, configuration and audit endpoints.
 
-**Related:** ARCH-COMP-WEB
+GET /admin/appointments: oversight of all appointments with filters by doctor, patient, date and status. PUT /admin/appointments/{id}/reassign: reassign an appointment to another doctor/slot under the same locking rules, with parties notified. GET/POST/PUT/DELETE /admin/specializations: manage specializations; deletion warns/blocks on dependencies (doctors or mappings). GET/POST/PUT/DELETE /admin/mappings: maintain the disease/symptom-to-specialization mapping; rejects mapping to a non-existent specialization. PUT /admin/doctors/{doctor_id}/status: deactivate/reactivate a doctor; deactivation removes them from search, ends sessions, flags appointments. GET /admin/audit-logs: review access/change events for consultation records and appointments. PUT /admin/email-settings: configure the transactional email provider API key, stored as a secret and never displayed.
 
-### ARCH-DEPLOY-API · approved · source: architecture:deployment:api
+### ARCH-DEPLOY-WEB · approved · source: architecture:deployment:web-spa-hosting
 
-API service node: FastAPI 0.115 running on Uvicorn/Python over HTTPS.
+Static hosting for the React 19 SPA.
 
-Deployment node: AWS App Runner (or ECS Fargate) hosting FastAPI 0.115 on Python/Uvicorn, served over HTTPS.
+Deployed as a React 19 static build served from AWS S3 with CloudFront as the static SPA origin.
 
-**Related:** ARCH-COMP-API
+### ARCH-DEPLOY-API · approved · source: architecture:deployment:api-service
 
-### ARCH-DEPLOY-WORKER · approved · source: architecture:deployment:worker
+Hosting for the FastAPI backend service.
 
-Worker service node: Celery worker and beat scheduler running as a background ECS Fargate service.
+FastAPI 0.115 on Python/Uvicorn, served over HTTPS, deployed on AWS App Runner (or ECS Fargate as an alternative).
 
-Deployment node: AWS ECS Fargate background worker service running Celery worker + beat on Python.
+### ARCH-DEPLOY-WORKER · approved · source: architecture:deployment:worker-service
 
-**Related:** ARCH-COMP-WORKER
+Hosting for the background notification worker.
 
-### ARCH-DEPLOY-DB · approved · source: architecture:deployment:db
+Celery worker plus beat scheduler on Python, deployed on AWS ECS Fargate as a dedicated background worker service.
 
-Database node: managed PostgreSQL 16 with encryption and automated backups.
+### ARCH-DEPLOY-DB · approved · source: architecture:deployment:database
 
-Deployment node: AWS RDS for PostgreSQL 16, with encryption at rest via KMS and automated backups.
+Managed database hosting for PostgreSQL 16.
 
-**Related:** ARCH-COMP-DB
+AWS RDS for PostgreSQL 16, with encryption at rest via KMS and automated backups.
 
-### ARCH-DEPLOY-QUEUE · approved · source: architecture:deployment:queue
+### ARCH-DEPLOY-QUEUE · approved · source: architecture:deployment:queue-scheduler
 
-Queue/scheduler node: managed Redis 7 backing the worker.
+Managed Redis hosting for the queue/scheduler.
 
-Deployment node: AWS ElastiCache for Redis (or a redis:7-alpine container), Redis 7.
+AWS ElastiCache for Redis 7 (or a redis:7-alpine container as an alternative) backing the worker's queue and scheduling.
 
-**Related:** ARCH-COMP-QUEUE
+### ARCH-DEPLOY-EMAIL · approved · source: architecture:deployment:email-provider
 
-### ARCH-DEPLOY-EMAIL · approved · source: architecture:deployment:email
+SendGrid as the external SaaS email provider.
 
-Email provider node: SendGrid SaaS transactional email API.
-
-Deployment node: SendGrid, SaaS transactional email API used for all outbound patient emails.
-
-**Related:** ARCH-COMP-EMAIL
+SendGrid's transactional email API is used for all outbound appointment-related emails; it is an external SaaS dependency, not hosted within the AWS account.
 
 ### ARCH-DEPLOY-SECRETS · approved · source: architecture:deployment:secrets
 
-Secrets management node: centralized storage for the service's sensitive configuration values.
+Centralized secrets storage for sensitive configuration.
 
-Deployment node: AWS Secrets Manager stores SENDGRID_API_KEY, REDIS_URL and DATABASE_URL as secrets (values are configuration placeholders, never literal credentials in documentation).
+AWS Secrets Manager stores SENDGRID_API_KEY, REDIS_URL and DATABASE_URL as managed secrets; the admin email-settings endpoint stores the provider API key as a secret and never displays it.
 
-**Related:** ARCH-COMP-API, ARCH-COMP-WORKER, ARCH-COMP-DB, ARCH-COMP-QUEUE
+### ARCH-TECH-FRONTEND · approved · source: architecture:tech-decision:frontend
+
+React 19 chosen as the frontend framework over Vue and Angular.
+
+Builds the single responsive SPA serving patients on phones, doctors managing their day, and the admin dashboard, including live slot calendars and record entry. Runs in any mobile browser, meeting the project's no-native-app decision.
+
+### ARCH-TECH-BACKEND · approved · source: architecture:tech-decision:backend
+
+FastAPI 0.115 chosen as the backend framework over Django REST Framework and Flask.
+
+Hosts all booking integrity, role-based authorization and the static mapping lookup in clean, typed endpoints, pairing with PostgreSQL row locking to implement the double-booking guard.
+
+### ARCH-TECH-DATABASE · approved · source: architecture:tech-decision:database
+
+PostgreSQL 16 chosen as the database over MySQL and SQL Server.
+
+Transactions and row-level locking (SELECT FOR UPDATE on the slot row) directly implement 'book a slot exactly once'; holds the relational doctor/specialization/mapping/appointment data and supports encryption at rest for health-data safeguards.
+
+### ARCH-TECH-CLOUD · approved · source: architecture:tech-decision:cloud
+
+AWS chosen as the cloud provider over GCP and Azure.
+
+One account provides managed PostgreSQL (RDS with KMS encryption and backups), app/worker hosting, Redis (ElastiCache), and Secrets Manager for the SendGrid key, with audit-friendly access controls, and scales beyond the pilot without re-platforming.
 <!-- sdlc:auto:end narrative -->
 
 <!-- sdlc:auto:start building-blocks -->

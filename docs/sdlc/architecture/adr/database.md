@@ -2,7 +2,7 @@
 # ADR-0003: Use PostgreSQL 16 for Database
 
 Status: Accepted  
-Date: 2026-11-16
+Date: 2026-11-24
 
 ## Context and Problem Statement
 

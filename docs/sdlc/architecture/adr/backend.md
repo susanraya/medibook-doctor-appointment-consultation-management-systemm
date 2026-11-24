@@ -2,7 +2,7 @@
 # ADR-0002: Use FastAPI 0.115 for Backend
 
 Status: Accepted  
-Date: 2026-11-16
+Date: 2026-11-24
 
 ## Context and Problem Statement
 
