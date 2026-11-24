@@ -6,7 +6,6 @@ is a stub that returns a typed placeholder, so the service starts, serves its
 OpenAPI document and passes its tests before a single handler is implemented.
 """
 
-import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -16,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app import models  # noqa: F401 -- imported so the tables register before create_all
+from app.config import settings
 from app.database import Base, SessionLocal, engine
 from app.routers import all_routers
 from app.seed import seed_bootstrap_users
@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(
-    title="MediBook – Doctor Appointment & Consultation Management Systemm",
+    title="MediBook – Doctor Appointment & Consultation Management System",
     description=APP_DESCRIPTION,
     version="0.1.0",
     lifespan=lifespan,
@@ -75,12 +75,12 @@ app = FastAPI(
 # The SPA runs on a different origin than the API, so the browser refuses its calls
 # unless that origin is allowed here. In development that is the Vite dev server; when
 # deployed, the platform injects the frontend's real URL as ALLOWED_ORIGINS (comma
-# separated). Point ALLOWED_ORIGINS at the real thing and nothing else has to change.
+# separated), already parsed once by app.config.settings. Point ALLOWED_ORIGINS at the
+# real thing and nothing else has to change.
 _dev_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
-_allowed_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_allowed_origins or _dev_origins,
+    allow_origins=settings.allowed_origins or _dev_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

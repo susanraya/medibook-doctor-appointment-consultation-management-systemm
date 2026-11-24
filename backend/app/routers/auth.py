@@ -4,8 +4,6 @@ See `app.deps` for the bearer-token guard every other protected endpoint will
 use, and `app.sessions` for where a token is issued and revoked.
 """
 
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session as DBSession
 
@@ -21,7 +19,7 @@ from app.schemas import (
     UserOut,
 )
 from app.security import hash_password, verify_password
-from app.sessions import create_session
+from app.sessions import create_session, revoke_session
 
 router = APIRouter(tags=["auth"])
 
@@ -102,8 +100,7 @@ async def set_first_login_password(
 
 @router.post("/auth/logout", status_code=204)
 async def logout(session: SessionModel = _session, db: DBSession = _db) -> None:
-    session.revoked_at = session.revoked_at or datetime.utcnow()
-    db.commit()
+    revoke_session(db, session.token)
     return None
 
 

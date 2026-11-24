@@ -46,9 +46,11 @@ def upgrade() -> None:
         )
 
     # NFR-012: email is looked up on every login/register.
-    existing_user_indexes = {ix["name"] for ix in inspector.get_indexes("users")} if (
-        "users" in existing_tables
-    ) else set()
+    existing_user_indexes = (
+        {ix["name"] for ix in inspector.get_indexes("users")}
+        if ("users" in existing_tables)
+        else set()
+    )
     if "ix_users_email" not in existing_user_indexes:
         op.create_index("ix_users_email", "users", ["email"], unique=True)
 
@@ -63,9 +65,11 @@ def upgrade() -> None:
             sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
         )
 
-    existing_session_indexes = {ix["name"] for ix in inspector.get_indexes("sessions")} if (
-        "sessions" in existing_tables
-    ) else set()
+    existing_session_indexes = (
+        {ix["name"] for ix in inspector.get_indexes("sessions")}
+        if ("sessions" in existing_tables)
+        else set()
+    )
     if "ix_sessions_user_id" not in existing_session_indexes:
         op.create_index("ix_sessions_user_id", "sessions", ["user_id"])
 

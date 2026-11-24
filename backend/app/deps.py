@@ -52,6 +52,10 @@ def get_current_session(
         raise _unauthorized()
 
     now = datetime.utcnow()
+    if session.expires_at is not None and now > session.expires_at:
+        session.revoked_at = now
+        db.commit()
+        raise _unauthorized()
     if now - session.last_activity_at > timedelta(minutes=_session_idle_minutes()):
         session.revoked_at = now
         db.commit()
@@ -62,6 +66,9 @@ def get_current_session(
         raise _unauthorized()
 
     session.last_activity_at = now
+    # Cached here so `get_current_user` -- which runs right after this dependency on
+    # every authenticated request -- does not re-query the row this just loaded.
+    session._current_user = user  # noqa: SLF001 -- deliberate same-module cache
     db.commit()
     return session
 
@@ -73,6 +80,9 @@ def get_current_user(
     session: SessionModel = _current_session_dep,
     db: DBSession = _db_dep,
 ) -> User:
+    cached = getattr(session, "_current_user", None)
+    if cached is not None:
+        return cached
     user = db.query(User).filter(User.id == session.user_id).first()
     if user is None:
         raise _unauthorized()
