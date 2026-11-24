@@ -28,12 +28,6 @@ def _uuid() -> str:
     return str(uuid.uuid4())
 
 
-# Placeholder `password_status` for a staff account an admin provisioned but that
-# has not signed in yet (US-003). Shared by app.routers.admin (sets it) and
-# app.routers.auth (checks it) so the literal exists in exactly one place.
-STAFF_PASSWORD_PLACEHOLDER = "<set-at-first-login>"
-
-
 # The password_status value a staff account an admin provisions carries until the
 # account's first login sets a real credential (US-003, NFR-010). Shared so
 # app.routers.admin (sets it) and app.routers.auth (checks it) never drift apart.
@@ -215,7 +209,6 @@ class AuditLog(Base):
 
 __all__ = [
     "Base",
-    "STAFF_PASSWORD_PLACEHOLDER",
     "STAFF_PASSWORD_PLACEHOLDER",
     "User",
     "Session",
