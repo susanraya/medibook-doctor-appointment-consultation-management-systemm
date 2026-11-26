@@ -11,8 +11,7 @@
 // The generated screens do NOT use this yet -- they render seeded sample data, exactly as
 // they were approved. This is the seam to replace that with real calls, one screen at a
 // time.
-export const API_BASE_URL: string =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 // The shared bearer the deployed API expects (its SECRET_KEY). The platform bakes the
 // same value into both sides at deploy time, so authenticated calls work out of the box.
@@ -50,6 +49,25 @@ export function clearSessionToken(): void {
   }
 }
 
+// Thrown by apiFetch on any non-2xx response. `detail` carries the parsed JSON
+// `detail` field from the error body, exactly as the auth contract shapes it:
+// a string for 401/409, or an array of {field, message} for 422.
+export class ApiError extends Error {
+  status: number;
+  detail: unknown;
+
+  constructor(status: number, detail: unknown, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+// Paths where a 401 is an expected, ordinary outcome (bad credentials, not an
+// ended session) rather than a sign of a session that needs ending client-side.
+const AUTH_ENTRY_PATHS = new Set(["/auth/login", "/auth/register"]);
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const bearer = getSessionToken() ?? API_SECRET_KEY;
   // Join with exactly one slash: API_BASE_URL is baked with a trailing slash (the API
@@ -64,7 +82,23 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     },
   });
   if (!response.ok) {
-    throw new Error(`${init?.method ?? "GET"} ${path} failed: ${response.status}`);
+    let detail: unknown;
+    try {
+      detail = (await response.json())?.detail;
+    } catch {
+      detail = undefined;
+    }
+    if (response.status === 401 && !AUTH_ENTRY_PATHS.has(path)) {
+      // Any other endpoint's 401 means the session is over: the token was
+      // missing, revoked, idle too long, or the account got deactivated.
+      clearSessionToken();
+      window.dispatchEvent(new CustomEvent("session-expired"));
+    }
+    throw new ApiError(
+      response.status,
+      detail,
+      `${init?.method ?? "GET"} ${path} failed: ${response.status}`,
+    );
   }
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
 }

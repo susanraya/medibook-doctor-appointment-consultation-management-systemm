@@ -110,7 +110,7 @@ export default function Screen() {
     if (!v.email.trim()) e.email = 'we need an email for appointment notices.';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())) e.email = 'that does not look like an email address.';
     if (!v.phone.trim()) e.phone = 'a phone number is required for reminders.';
-    else if (!/^[+0-9][0-9 ()\-]{6,}$/.test(v.phone.trim())) e.phone = 'use digits, spaces, + or ( ) only.';
+    else if (!/^[+0-9][0-9 ()-]{6,}$/.test(v.phone.trim())) e.phone = 'use digits, spaces, + or ( ) only.';
     if (isDoctor) {
       if (!v.specialization_id) e.specialization_id = 'choose a specialization from the clinic list.';
       if (!v.contact.trim()) e.contact = 'patients see this line — give them a way to reach you.';
