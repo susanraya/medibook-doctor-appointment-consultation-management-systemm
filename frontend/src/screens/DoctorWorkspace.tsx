@@ -7,13 +7,12 @@ import { Icons } from "@/lib/icons";
 import { brand } from "@/lib/brand";
 import { useNavigate } from "@/lib/navigate";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const { Input, Textarea, Label, Select, Table, THead, TBody, TR, TH, TD, Avatar, Empty } = UI;
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+
 const { Edit, ArrowLeft, ArrowRight } = Icons;
 
 const hexToRgb = (hex) => {
-  const h = String(hex).replace('#', '');
+  const h = String(hex).replace("#", "");
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 };
 const rgba = (hex, a) => {
@@ -27,147 +26,152 @@ const mixHex = (a, b, t) => {
   return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
 };
 
-const DOCTOR = { name: 'Meera Shah', specialization: 'General Medicine', clinic: 'Lotus Clinic, Indiranagar' };
+const DOCTOR = {
+  name: "Meera Shah",
+  specialization: "General Medicine",
+  clinic: "Lotus Clinic, Indiranagar",
+};
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const SLOT_LENGTHS = ['15', '20', '30', '45', '60'];
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const SLOT_LENGTHS = ["15", "20", "30", "45", "60"];
 
 const APPOINTMENTS = [
   {
-    id: 'ap-1041',
-    patient: 'Rahul Mehta',
-    period: 'today',
-    dateLabel: 'Mon 16 Nov 2026',
-    shortDate: '16 Nov 2026',
-    start: '09:00',
-    end: '09:30',
+    id: "ap-1041",
+    patient: "Rahul Mehta",
+    period: "today",
+    dateLabel: "Mon 16 Nov 2026",
+    shortDate: "16 Nov 2026",
+    start: "09:00",
+    end: "09:30",
     slotMins: 30,
-    status: 'completed',
+    status: "completed",
   },
   {
-    id: 'ap-1042',
-    patient: 'Devika Iyer',
-    period: 'today',
-    dateLabel: 'Mon 16 Nov 2026',
-    shortDate: '16 Nov 2026',
-    start: '09:30',
-    end: '10:00',
+    id: "ap-1042",
+    patient: "Devika Iyer",
+    period: "today",
+    dateLabel: "Mon 16 Nov 2026",
+    shortDate: "16 Nov 2026",
+    start: "09:30",
+    end: "10:00",
     slotMins: 30,
-    status: 'no-show',
+    status: "no-show",
   },
   {
-    id: 'ap-1043',
-    patient: 'Priya Nair',
-    period: 'today',
-    dateLabel: 'Mon 16 Nov 2026',
-    shortDate: '16 Nov 2026',
-    start: '10:30',
-    end: '11:00',
+    id: "ap-1043",
+    patient: "Priya Nair",
+    period: "today",
+    dateLabel: "Mon 16 Nov 2026",
+    shortDate: "16 Nov 2026",
+    start: "10:30",
+    end: "11:00",
     slotMins: 30,
-    status: 'completed',
+    status: "completed",
   },
   {
-    id: 'ap-1044',
-    patient: 'Sana Qureshi',
-    period: 'today',
-    dateLabel: 'Mon 16 Nov 2026',
-    shortDate: '16 Nov 2026',
-    start: '12:00',
-    end: '12:30',
+    id: "ap-1044",
+    patient: "Sana Qureshi",
+    period: "today",
+    dateLabel: "Mon 16 Nov 2026",
+    shortDate: "16 Nov 2026",
+    start: "12:00",
+    end: "12:30",
     slotMins: 30,
-    status: 'scheduled',
-    treatingDoctor: 'Dr. Kavita Menon',
-    note: 'reassigned to the covering doctor by the clinic admin on 15 nov',
+    status: "scheduled",
+    treatingDoctor: "Dr. Kavita Menon",
+    note: "reassigned to the covering doctor by the clinic admin on 15 nov",
   },
   {
-    id: 'ap-1051',
-    patient: 'Ananya Krishnan',
-    period: 'upcoming',
-    dateLabel: 'Wed 18 Nov 2026',
-    shortDate: '18 Nov 2026',
-    start: '14:00',
-    end: '14:30',
+    id: "ap-1051",
+    patient: "Ananya Krishnan",
+    period: "upcoming",
+    dateLabel: "Wed 18 Nov 2026",
+    shortDate: "18 Nov 2026",
+    start: "14:00",
+    end: "14:30",
     slotMins: 30,
-    status: 'scheduled',
+    status: "scheduled",
   },
   {
-    id: 'ap-1052',
-    patient: 'Joseph Mathew',
-    period: 'upcoming',
-    dateLabel: 'Wed 18 Nov 2026',
-    shortDate: '18 Nov 2026',
-    start: '15:30',
-    end: '16:00',
+    id: "ap-1052",
+    patient: "Joseph Mathew",
+    period: "upcoming",
+    dateLabel: "Wed 18 Nov 2026",
+    shortDate: "18 Nov 2026",
+    start: "15:30",
+    end: "16:00",
     slotMins: 30,
-    status: 'scheduled',
+    status: "scheduled",
   },
   {
-    id: 'ap-1053',
-    patient: 'Nikhil Bansal',
-    period: 'upcoming',
-    dateLabel: 'Fri 20 Nov 2026',
-    shortDate: '20 Nov 2026',
-    start: '09:00',
-    end: '09:30',
+    id: "ap-1053",
+    patient: "Nikhil Bansal",
+    period: "upcoming",
+    dateLabel: "Fri 20 Nov 2026",
+    shortDate: "20 Nov 2026",
+    start: "09:00",
+    end: "09:30",
     slotMins: 30,
-    status: 'cancelled',
-    note: 'cancelled by the patient on 14 nov',
+    status: "cancelled",
+    note: "cancelled by the patient on 14 nov",
   },
   {
-    id: 'ap-1054',
-    patient: 'Leela Pillai',
-    period: 'upcoming',
-    dateLabel: 'Fri 20 Nov 2026',
-    shortDate: '20 Nov 2026',
-    start: '11:00',
-    end: '11:30',
+    id: "ap-1054",
+    patient: "Leela Pillai",
+    period: "upcoming",
+    dateLabel: "Fri 20 Nov 2026",
+    shortDate: "20 Nov 2026",
+    start: "11:00",
+    end: "11:30",
     slotMins: 30,
-    status: 'scheduled',
+    status: "scheduled",
   },
   {
-    id: 'ap-1055',
-    patient: 'Tanvi Raghavan',
-    period: 'upcoming',
-    dateLabel: 'Mon 23 Nov 2026',
-    shortDate: '23 Nov 2026',
-    start: '09:30',
-    end: '10:00',
+    id: "ap-1055",
+    patient: "Tanvi Raghavan",
+    period: "upcoming",
+    dateLabel: "Mon 23 Nov 2026",
+    shortDate: "23 Nov 2026",
+    start: "09:30",
+    end: "10:00",
     slotMins: 30,
-    status: 'scheduled',
+    status: "scheduled",
   },
 ];
 
 const INITIAL_RECORDS = {
-  'ap-1041': {
+  "ap-1041": {
     notes:
-      'Reviewed two weeks of home blood-pressure readings, averaging 132/84. Reports no headaches or ankle swelling. Weight down 1.4 kg since September. Salt intake discussed; walking 30 minutes most evenings.',
-    diagnosis: 'Essential hypertension, well controlled on current dose',
-    prescription: 'Amlodipine 5 mg once daily, continue 3 months. Repeat BP diary before next review.',
-    updatedAt: '16 Nov 2026, 09:28',
+      "Reviewed two weeks of home blood-pressure readings, averaging 132/84. Reports no headaches or ankle swelling. Weight down 1.4 kg since September. Salt intake discussed; walking 30 minutes most evenings.",
+    diagnosis: "Essential hypertension, well controlled on current dose",
+    prescription:
+      "Amlodipine 5 mg once daily, continue 3 months. Repeat BP diary before next review.",
+    updatedAt: "16 Nov 2026, 09:28",
   },
-  'ap-1043': {
+  "ap-1043": {
     notes:
-      'Six days of dry cough and sore throat, no fever since Friday. Chest clear on auscultation, throat mildly inflamed with no exudate. Temperature 37.1 °C, SpO2 98%. Advised steam inhalation and fluids, review if fever returns or the cough runs past ten days.',
-    diagnosis: 'Acute viral pharyngitis',
-    prescription: '',
-    updatedAt: '16 Nov 2026, 11:04',
+      "Six days of dry cough and sore throat, no fever since Friday. Chest clear on auscultation, throat mildly inflamed with no exudate. Temperature 37.1 °C, SpO2 98%. Advised steam inhalation and fluids, review if fever returns or the cough runs past ten days.",
+    diagnosis: "Acute viral pharyngitis",
+    prescription: "",
+    updatedAt: "16 Nov 2026, 11:04",
   },
 };
 
 const INITIAL_HOURS = [
-  { id: 'av-01', day: 'Monday', start: '09:00', end: '13:00', slot: '30', booked: 2 },
-  { id: 'av-02', day: 'Wednesday', start: '14:00', end: '17:00', slot: '30', booked: 2 },
-  { id: 'av-03', day: 'Friday', start: '09:00', end: '12:00', slot: '30', booked: 1 },
+  { id: "av-01", day: "Monday", start: "09:00", end: "13:00", slot: "30", booked: 2 },
+  { id: "av-02", day: "Wednesday", start: "14:00", end: "17:00", slot: "30", booked: 2 },
+  { id: "av-03", day: "Friday", start: "09:00", end: "12:00", slot: "30", booked: 1 },
 ];
 
 const PERIOD_HEADINGS = {
-  today: 'Scheduled appointments — Mon 16 Nov 2026',
-  upcoming: 'Scheduled appointments — Tue 17 Nov – Mon 23 Nov 2026',
-  past: 'Scheduled appointments — before Mon 16 Nov 2026',
+  today: "Scheduled appointments — Mon 16 Nov 2026",
+  upcoming: "Scheduled appointments — Tue 17 Nov – Mon 23 Nov 2026",
+  past: "Scheduled appointments — before Mon 16 Nov 2026",
 };
 
 const toMinutes = (t) => {
-  const [h, m] = String(t).split(':');
+  const [h, m] = String(t).split(":");
   return parseInt(h, 10) * 60 + parseInt(m, 10);
 };
 
@@ -179,32 +183,37 @@ export default function Screen() {
   const neutral = brand.neutralColor;
   const muted = mixHex(ink, neutral, 0.45);
   const accentStrong = mixHex(accent, ink, 0.4);
-  const paper = 'rgba(255, 255, 255, 0.72)';
+  const paper = "rgba(255, 255, 255, 0.72)";
   const hairline = rgba(ink, 0.12);
 
   const STATUS_META = {
-    scheduled: { label: 'Scheduled', Icon: Icons.Clock, bg: rgba(ink, 0.07), fg: ink },
-    completed: { label: 'Completed', Icon: Icons.CheckCircle, bg: rgba(accent, 0.26), fg: ink },
-    'no-show': { label: 'No-show', Icon: Icons.AlertCircle, bg: rgba(neutral, 0.26), fg: muted },
-    cancelled: { label: 'Cancelled', Icon: Icons.X, bg: 'transparent', fg: muted },
+    scheduled: { label: "Scheduled", Icon: Icons.Clock, bg: rgba(ink, 0.07), fg: ink },
+    completed: { label: "Completed", Icon: Icons.CheckCircle, bg: rgba(accent, 0.26), fg: ink },
+    "no-show": { label: "No-show", Icon: Icons.AlertCircle, bg: rgba(neutral, 0.26), fg: muted },
+    cancelled: { label: "Cancelled", Icon: Icons.X, bg: "transparent", fg: muted },
   };
 
-  const [tab, setTab] = React.useState('today');
+  const [tab, setTab] = React.useState("today");
   const [appts, setAppts] = React.useState(APPOINTMENTS);
   const [records, setRecords] = React.useState(INITIAL_RECORDS);
-  const [selectedId, setSelectedId] = React.useState('ap-1043');
+  const [selectedId, setSelectedId] = React.useState("ap-1043");
   const [draft, setDraft] = React.useState({
-    notes: INITIAL_RECORDS['ap-1043'].notes,
-    diagnosis: INITIAL_RECORDS['ap-1043'].diagnosis,
-    prescription: INITIAL_RECORDS['ap-1043'].prescription,
+    notes: INITIAL_RECORDS["ap-1043"].notes,
+    diagnosis: INITIAL_RECORDS["ap-1043"].diagnosis,
+    prescription: INITIAL_RECORDS["ap-1043"].prescription,
   });
   const [fieldErrors, setFieldErrors] = React.useState({});
-  const [saveState, setSaveState] = React.useState('idle');
-  const [statusDraft, setStatusDraft] = React.useState('completed');
+  const [saveState, setSaveState] = React.useState("idle");
+  const [statusDraft, setStatusDraft] = React.useState("completed");
   const [statusMsg, setStatusMsg] = React.useState(null);
   const [hours, setHours] = React.useState(INITIAL_HOURS);
-  const [hoursForm, setHoursForm] = React.useState({ day: 'Tuesday', start: '10:00', end: '13:00', slot: '30' });
-  const [hoursState, setHoursState] = React.useState('idle');
+  const [hoursForm, setHoursForm] = React.useState({
+    day: "Tuesday",
+    start: "10:00",
+    end: "13:00",
+    slot: "30",
+  });
+  const [hoursState, setHoursState] = React.useState("idle");
   const [hoursMsg, setHoursMsg] = React.useState(null);
   const [confirmRemove, setConfirmRemove] = React.useState(null);
 
@@ -217,21 +226,21 @@ export default function Screen() {
 
   const tabRefs = React.useRef([]);
   const counts = {
-    today: appts.filter((a) => a.period === 'today').length,
-    upcoming: appts.filter((a) => a.period === 'upcoming').length,
-    past: appts.filter((a) => a.period === 'past').length,
+    today: appts.filter((a) => a.period === "today").length,
+    upcoming: appts.filter((a) => a.period === "upcoming").length,
+    past: appts.filter((a) => a.period === "past").length,
   };
   const TABS = [
-    { key: 'today', label: 'Today', count: counts.today, wf: 'i-1-0-0' },
-    { key: 'upcoming', label: 'Upcoming', count: counts.upcoming, wf: 'i-1-0-1' },
-    { key: 'past', label: 'Past', count: counts.past, wf: 'i-1-0-2' },
-    { key: 'availability', label: 'Weekly availability', count: null, wf: 'i-1-0-3' },
+    { key: "today", label: "Today", count: counts.today, wf: "i-1-0-0" },
+    { key: "upcoming", label: "Upcoming", count: counts.upcoming, wf: "i-1-0-1" },
+    { key: "past", label: "Past", count: counts.past, wf: "i-1-0-2" },
+    { key: "availability", label: "Weekly availability", count: null, wf: "i-1-0-3" },
   ];
 
-  const rows = tab === 'availability' ? [] : appts.filter((a) => a.period === tab);
+  const rows = tab === "availability" ? [] : appts.filter((a) => a.period === tab);
   const selected = appts.find((a) => a.id === selectedId) || null;
   const savedRecord = selected ? records[selected.id] : null;
-  const isBlocked = selected && selected.status === 'cancelled';
+  const isBlocked = selected && selected.status === "cancelled";
   const isOtherDoctor = Boolean(selected && selected.treatingDoctor);
   const canEdit = Boolean(selected) && !isBlocked && !isOtherDoctor;
   const dirty =
@@ -243,19 +252,19 @@ export default function Screen() {
 
   const selectAppointment = (appt) => {
     setSelectedId(appt.id);
-    const rec = records[appt.id] || { notes: '', diagnosis: '', prescription: '' };
+    const rec = records[appt.id] || { notes: "", diagnosis: "", prescription: "" };
     setDraft({ notes: rec.notes, diagnosis: rec.diagnosis, prescription: rec.prescription });
     setFieldErrors({});
-    setSaveState('idle');
-    setStatusDraft(appt.status === 'cancelled' ? 'scheduled' : appt.status);
+    setSaveState("idle");
+    setStatusDraft(appt.status === "cancelled" ? "scheduled" : appt.status);
     setStatusMsg(null);
   };
 
   const onTabKeyDown = (e) => {
     const i = TABS.findIndex((t) => t.key === tab);
     let next = null;
-    if (e.key === 'ArrowRight') next = (i + 1) % TABS.length;
-    if (e.key === 'ArrowLeft') next = (i - 1 + TABS.length) % TABS.length;
+    if (e.key === "ArrowRight") next = (i + 1) % TABS.length;
+    if (e.key === "ArrowLeft") next = (i - 1 + TABS.length) % TABS.length;
     if (next === null) return;
     e.preventDefault();
     setTab(TABS[next].key);
@@ -267,47 +276,51 @@ export default function Screen() {
     e.preventDefault();
     if (!canEdit) return;
     const errs = {};
-    if (!draft.notes.trim()) errs.notes = 'clinical notes are needed before this consultation can be filed.';
-    if (!draft.diagnosis.trim()) errs.diagnosis = 'add a diagnosis, even a provisional one.';
+    if (!draft.notes.trim())
+      errs.notes = "clinical notes are needed before this consultation can be filed.";
+    if (!draft.diagnosis.trim()) errs.diagnosis = "add a diagnosis, even a provisional one.";
     setFieldErrors(errs);
     if (Object.keys(errs).length) {
-      setSaveState('error');
+      setSaveState("error");
       return;
     }
-    setSaveState('saving');
+    setSaveState("saving");
     later(() => {
       setRecords((prev) => ({
         ...prev,
         [selected.id]: { ...draft, updatedAt: `${selected.shortDate}, just now` },
       }));
-      setSaveState('saved');
+      setSaveState("saved");
     }, 700);
   };
 
   const updateStatus = () => {
     if (!selected) return;
-    if (selected.status === 'cancelled') {
+    if (selected.status === "cancelled") {
       setStatusMsg({
-        kind: 'error',
+        kind: "error",
         text: `this appointment was cancelled, so it can't be moved to ${STATUS_META[statusDraft].label.toLowerCase()}. ask the clinic admin to rebook ${selected.patient} into a free slot.`,
       });
       return;
     }
     if (selected.treatingDoctor) {
       setStatusMsg({
-        kind: 'error',
+        kind: "error",
         text: `${selected.treatingDoctor} is the treating doctor for this slot. only the treating doctor can change its status.`,
       });
       return;
     }
     if (statusDraft === selected.status) {
-      setStatusMsg({ kind: 'info', text: `already marked ${STATUS_META[statusDraft].label.toLowerCase()} — nothing to save.` });
+      setStatusMsg({
+        kind: "info",
+        text: `already marked ${STATUS_META[statusDraft].label.toLowerCase()} — nothing to save.`,
+      });
       return;
     }
     setAppts((prev) => prev.map((a) => (a.id === selected.id ? { ...a, status: statusDraft } : a)));
     setStatusMsg({
-      kind: 'success',
-      text: `${selected.patient.split(' ')[0]}'s consultation is now ${STATUS_META[statusDraft].label.toLowerCase()}. it shows on her appointments page too.`,
+      kind: "success",
+      text: `${selected.patient.split(" ")[0]}'s consultation is now ${STATUS_META[statusDraft].label.toLowerCase()}. it shows on her appointments page too.`,
     });
   };
 
@@ -317,36 +330,44 @@ export default function Screen() {
     const s = toMinutes(start);
     const en = toMinutes(end);
     if (!start || !end || Number.isNaN(s) || Number.isNaN(en)) {
-      setHoursMsg({ kind: 'error', text: 'a start and an end time are both needed before slots can be generated.' });
+      setHoursMsg({
+        kind: "error",
+        text: "a start and an end time are both needed before slots can be generated.",
+      });
       return;
     }
     if (en <= s) {
-      setHoursMsg({ kind: 'error', text: 'the end time needs to come after the start time.' });
+      setHoursMsg({ kind: "error", text: "the end time needs to come after the start time." });
       return;
     }
-    const clash = hours.find((h) => h.day === day && s < toMinutes(h.end) && en > toMinutes(h.start));
+    const clash = hours.find(
+      (h) => h.day === day && s < toMinutes(h.end) && en > toMinutes(h.start),
+    );
     if (clash) {
       setHoursMsg({
-        kind: 'error',
+        kind: "error",
         text: `${day.toLowerCase()} ${clash.start} – ${clash.end} already covers part of this range. overlapping ranges on the same day are rejected — edit the existing range instead.`,
       });
       return;
     }
     const generated = Math.floor((en - s) / parseInt(slot, 10));
     if (generated < 1) {
-      setHoursMsg({ kind: 'error', text: `that range is shorter than one ${slot} minute slot.` });
+      setHoursMsg({ kind: "error", text: `that range is shorter than one ${slot} minute slot.` });
       return;
     }
-    setHoursState('saving');
+    setHoursState("saving");
     later(() => {
-      setHours((prev) => [...prev, { id: `av-${Date.now()}`, day, start, end, slot, booked: 0, isNew: true }]);
-      setHoursState('idle');
+      setHours((prev) => [
+        ...prev,
+        { id: `av-${Date.now()}`, day, start, end, slot, booked: 0, isNew: true },
+      ]);
+      setHoursState("idle");
       const remainder = (en - s) % parseInt(slot, 10);
       setHoursMsg({
-        kind: 'success',
+        kind: "success",
         text:
           `${day.toLowerCase()} ${start} – ${end} saved · ${generated} slots of ${slot} min are now bookable.` +
-          (remainder ? ` the last ${remainder} minutes stay unbooked.` : ''),
+          (remainder ? ` the last ${remainder} minutes stay unbooked.` : ""),
       });
     }, 650);
   };
@@ -355,25 +376,25 @@ export default function Screen() {
     setHours((prev) => prev.filter((x) => x.id !== h.id));
     setConfirmRemove(null);
     setHoursMsg({
-      kind: 'success',
-      text: `${h.day.toLowerCase()} ${h.start} – ${h.end} removed${h.booked ? ` · ${h.booked} booked appointment${h.booked > 1 ? 's' : ''} kept and flagged for the clinic admin` : ''}.`,
+      kind: "success",
+      text: `${h.day.toLowerCase()} ${h.start} – ${h.end} removed${h.booked ? ` · ${h.booked} booked appointment${h.booked > 1 ? "s" : ""} kept and flagged for the clinic admin` : ""}.`,
     });
   };
 
   const pillBase =
-    'inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm transition-colors duration-200 atrium-focusable';
+    "inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm transition-colors duration-200 atrium-focusable";
 
-  const labelCls = 'block text-xs tracking-[0.14em] uppercase mb-2';
+  const labelCls = "block text-xs tracking-[0.14em] uppercase mb-2";
 
   const fieldStyle = {
     backgroundColor: rgba(ink, 0.05),
     border: `1px solid ${hairline}`,
     color: ink,
-    borderRadius: '999px',
-    padding: '12px 20px',
-    width: '100%',
+    borderRadius: "999px",
+    padding: "12px 20px",
+    width: "100%",
   };
-  const areaStyle = { ...fieldStyle, borderRadius: '24px', padding: '16px 22px', lineHeight: 1.6 };
+  const areaStyle = { ...fieldStyle, borderRadius: "24px", padding: "16px 22px", lineHeight: 1.6 };
 
   const StatusChip = ({ status }) => {
     const meta = STATUS_META[status];
@@ -384,7 +405,7 @@ export default function Screen() {
         style={{
           backgroundColor: meta.bg,
           color: meta.fg,
-          border: status === 'cancelled' ? `1px dashed ${rgba(ink, 0.3)}` : '1px solid transparent',
+          border: status === "cancelled" ? `1px dashed ${rgba(ink, 0.3)}` : "1px solid transparent",
         }}
       >
         <Icon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -395,14 +416,14 @@ export default function Screen() {
 
   const Notice = ({ kind, children, className }) => (
     <p
-      className={`flex items-start gap-2.5 text-sm leading-relaxed rounded-2xl px-4 py-3 ${className || ''}`}
+      className={`flex items-start gap-2.5 text-sm leading-relaxed rounded-2xl px-4 py-3 ${className || ""}`}
       style={{
-        backgroundColor: kind === 'success' ? rgba(accent, 0.18) : rgba(ink, 0.07),
+        backgroundColor: kind === "success" ? rgba(accent, 0.18) : rgba(ink, 0.07),
         color: ink,
-        borderLeft: `3px solid ${kind === 'success' ? accentStrong : rgba(ink, 0.45)}`,
+        borderLeft: `3px solid ${kind === "success" ? accentStrong : rgba(ink, 0.45)}`,
       }}
     >
-      {kind === 'success' ? (
+      {kind === "success" ? (
         <Icons.CheckCircle className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
       ) : (
         <Icons.AlertCircle className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
@@ -428,11 +449,11 @@ export default function Screen() {
         backgroundColor: cream,
         color: ink,
         fontFamily: brand.fontBody,
-        ['--atrium-ink']: ink,
-        ['--atrium-accent']: accentStrong,
-        ['--atrium-tint']: rgba(ink, 0.05),
-        ['--atrium-tint-strong']: rgba(ink, 0.1),
-        ['--atrium-ink-hover']: mixHex(ink, '#000000', 0.18),
+        ["--atrium-ink"]: ink,
+        ["--atrium-accent"]: accentStrong,
+        ["--atrium-tint"]: rgba(ink, 0.05),
+        ["--atrium-tint-strong"]: rgba(ink, 0.1),
+        ["--atrium-ink-hover"]: mixHex(ink, "#000000", 0.18),
       }}
     >
       <style>{`
@@ -464,20 +485,24 @@ export default function Screen() {
             </p>
             <h1
               className="mt-3 text-[34px] leading-tight sm:text-[40px]"
-              style={{ fontFamily: brand.fontHeading, fontStyle: 'italic', color: ink }}
+              style={{ fontFamily: brand.fontHeading, fontStyle: "italic", color: ink }}
             >
               Doctor Workspace
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-relaxed" style={{ color: muted }}>
-              dr. {DOCTOR.name.toLowerCase()} · {DOCTOR.specialization.toLowerCase()} — your day, your consultation
-              records, and the weekly hours patients book against.
+              dr. {DOCTOR.name.toLowerCase()} · {DOCTOR.specialization.toLowerCase()} — your day,
+              your consultation records, and the weekly hours patients book against.
             </p>
           </div>
           <div className="flex items-center gap-3">
             <Avatar name={DOCTOR.name} />
             <p
               className="flex items-center gap-2 rounded-full px-4 py-2 text-xs"
-              style={{ backgroundColor: rgba(ink, 0.06), color: muted, fontVariantNumeric: 'tabular-nums' }}
+              style={{
+                backgroundColor: rgba(ink, 0.06),
+                color: muted,
+                fontVariantNumeric: "tabular-nums",
+              }}
             >
               <Icons.Clock className="h-3.5 w-3.5" aria-hidden="true" />
               slots synced 2 minutes ago
@@ -508,13 +533,13 @@ export default function Screen() {
                 aria-controls={`panel-${t.key}`}
                 tabIndex={active ? 0 : -1}
                 onClick={() => setTab(t.key)}
-                className={`${pillBase} min-h-[44px] ${active ? '' : 'atrium-ghost'}`}
+                className={`${pillBase} min-h-[44px] ${active ? "" : "atrium-ghost"}`}
                 style={{
-                  backgroundColor: active ? ink : 'transparent',
+                  backgroundColor: active ? ink : "transparent",
                   color: active ? cream : ink,
                   fontFamily: active ? brand.fontHeading : brand.fontBody,
-                  fontStyle: active ? 'italic' : 'normal',
-                  fontSize: '15px',
+                  fontStyle: active ? "italic" : "normal",
+                  fontSize: "15px",
                 }}
               >
                 {t.label}
@@ -524,7 +549,7 @@ export default function Screen() {
                     style={{
                       backgroundColor: active ? rgba(accent, 0.45) : rgba(ink, 0.1),
                       color: active ? cream : muted,
-                      fontVariantNumeric: 'tabular-nums',
+                      fontVariantNumeric: "tabular-nums",
                     }}
                   >
                     {t.count}
@@ -535,7 +560,7 @@ export default function Screen() {
           })}
         </nav>
 
-        {tab !== 'availability' && (
+        {tab !== "availability" && (
           <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`}>
             {/* Row 3 — appointments table */}
             {rows.length > 0 && (
@@ -543,20 +568,30 @@ export default function Screen() {
                 <div className="flex flex-wrap items-baseline justify-between gap-3">
                   <h2
                     className="text-[22px] leading-snug"
-                    style={{ fontFamily: brand.fontHeading, fontStyle: 'italic' }}
+                    style={{ fontFamily: brand.fontHeading, fontStyle: "italic" }}
                   >
                     {PERIOD_HEADINGS[tab]}
                   </h2>
-                  <p className="text-xs" style={{ color: muted, fontVariantNumeric: 'tabular-nums' }}>
+                  <p
+                    className="text-xs"
+                    style={{ color: muted, fontVariantNumeric: "tabular-nums" }}
+                  >
                     {rows.length} appointments · choose one to open its record
                   </p>
                 </div>
 
                 <div
                   className="mt-5 overflow-hidden"
-                  style={{ backgroundColor: paper, border: `1px solid ${hairline}`, borderRadius: brand.radius }}
+                  style={{
+                    backgroundColor: paper,
+                    border: `1px solid ${hairline}`,
+                    borderRadius: brand.radius,
+                  }}
                 >
-                  <Table className="w-full text-left text-sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  <Table
+                    className="w-full text-left text-sm"
+                    style={{ fontVariantNumeric: "tabular-nums" }}
+                  >
                     <THead>
                       <TR style={{ borderBottom: `1px solid ${hairline}` }}>
                         <TH
@@ -601,8 +636,9 @@ export default function Screen() {
                             key={a.id}
                             className="atrium-row atrium-rise"
                             style={{
-                              borderBottom: idx === rows.length - 1 ? 'none' : `1px solid ${hairline}`,
-                              backgroundColor: isSel ? rgba(accent, 0.14) : 'transparent',
+                              borderBottom:
+                                idx === rows.length - 1 ? "none" : `1px solid ${hairline}`,
+                              backgroundColor: isSel ? rgba(accent, 0.14) : "transparent",
                               animationDelay: `${idx * 45}ms`,
                             }}
                           >
@@ -611,7 +647,7 @@ export default function Screen() {
                                 <span
                                   aria-hidden="true"
                                   className="mt-1 h-8 w-1.5 rounded-full shrink-0"
-                                  style={{ backgroundColor: isSel ? accentStrong : 'transparent' }}
+                                  style={{ backgroundColor: isSel ? accentStrong : "transparent" }}
                                 />
                                 <span>
                                   <button
@@ -620,7 +656,11 @@ export default function Screen() {
                                     aria-label={`Open consultation record for ${a.patient}, ${a.dateLabel} at ${a.start}`}
                                     aria-pressed={isSel}
                                     className="atrium-focusable text-left text-[15px] underline-offset-4 hover:underline"
-                                    style={{ color: ink, fontFamily: brand.fontHeading, fontStyle: 'italic' }}
+                                    style={{
+                                      color: ink,
+                                      fontFamily: brand.fontHeading,
+                                      fontStyle: "italic",
+                                    }}
                                   >
                                     {a.patient}
                                   </button>
@@ -679,46 +719,53 @@ export default function Screen() {
                 style={{
                   backgroundColor: paper,
                   border: `1px solid ${hairline}`,
-                  borderTopLeftRadius: 'min(50%, 200px)',
-                  borderTopRightRadius: 'min(50%, 200px)',
+                  borderTopLeftRadius: "min(50%, 200px)",
+                  borderTopRightRadius: "min(50%, 200px)",
                   borderBottomLeftRadius: brand.radius,
                   borderBottomRightRadius: brand.radius,
                 }}
               >
                 <div className="mx-auto max-w-2xl">
-                  <p className="text-center text-xs uppercase tracking-[0.2em]" style={{ color: muted }}>
+                  <p
+                    className="text-center text-xs uppercase tracking-[0.2em]"
+                    style={{ color: muted }}
+                  >
                     consultation record
                   </p>
                   <h2
                     className="mt-3 text-center text-[24px] leading-snug"
-                    style={{ fontFamily: brand.fontHeading, fontStyle: 'italic' }}
+                    style={{ fontFamily: brand.fontHeading, fontStyle: "italic" }}
                   >
                     {selected
                       ? `Consultation record — ${selected.patient} · ${selected.shortDate}, ${selected.start} – ${selected.end}`
-                      : 'Consultation record'}
+                      : "Consultation record"}
                   </h2>
                   {selected && savedRecord && (
                     <p
                       className="mt-2 text-center text-xs"
-                      style={{ color: muted, fontVariantNumeric: 'tabular-nums' }}
+                      style={{ color: muted, fontVariantNumeric: "tabular-nums" }}
                     >
-                      {dirty ? 'draft open · last filed ' : 'last filed '}
+                      {dirty ? "draft open · last filed " : "last filed "}
                       {savedRecord.updatedAt}
                     </p>
                   )}
 
                   {!selected && (
-                    <p className="mt-8 text-center text-sm leading-relaxed" style={{ color: muted }}>
-                      pick a patient from the list above to open their record. notes stay with the appointment and the
-                      patient only.
+                    <p
+                      className="mt-8 text-center text-sm leading-relaxed"
+                      style={{ color: muted }}
+                    >
+                      pick a patient from the list above to open their record. notes stay with the
+                      appointment and the patient only.
                     </p>
                   )}
 
                   {isOtherDoctor && (
                     <div className="mt-8">
                       <Notice kind="error">
-                        {selected.treatingDoctor} is the treating doctor for this slot, so her record stays closed to
-                        you. ask the clinic admin to reassign the appointment back if you are covering it.
+                        {selected.treatingDoctor} is the treating doctor for this slot, so her
+                        record stays closed to you. ask the clinic admin to reassign the appointment
+                        back if you are covering it.
                       </Notice>
                     </div>
                   )}
@@ -726,8 +773,9 @@ export default function Screen() {
                   {isBlocked && (
                     <div className="mt-8">
                       <Notice kind="error">
-                        {selected.patient} cancelled this appointment on 14 nov. cancelled appointments can&rsquo;t be
-                        written up or marked completed — the slot is back with the booking page.
+                        {selected.patient} cancelled this appointment on 14 nov. cancelled
+                        appointments can&rsquo;t be written up or marked completed — the slot is
+                        back with the booking page.
                       </Notice>
                     </div>
                   )}
@@ -746,7 +794,7 @@ export default function Screen() {
                           value={draft.notes}
                           onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
                           aria-invalid={Boolean(fieldErrors.notes)}
-                          aria-describedby={fieldErrors.notes ? 'cr-notes-err' : undefined}
+                          aria-describedby={fieldErrors.notes ? "cr-notes-err" : undefined}
                           className="atrium-focusable text-[15px]"
                           style={{
                             ...areaStyle,
@@ -754,7 +802,11 @@ export default function Screen() {
                           }}
                         />
                         {fieldErrors.notes && (
-                          <p id="cr-notes-err" className="mt-2 flex items-center gap-2 text-xs" style={{ color: ink }}>
+                          <p
+                            id="cr-notes-err"
+                            className="mt-2 flex items-center gap-2 text-xs"
+                            style={{ color: ink }}
+                          >
                             <Icons.AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
                             {fieldErrors.notes}
                           </p>
@@ -772,9 +824,12 @@ export default function Screen() {
                           value={draft.diagnosis}
                           onChange={(e) => setDraft({ ...draft, diagnosis: e.target.value })}
                           aria-invalid={Boolean(fieldErrors.diagnosis)}
-                          aria-describedby={fieldErrors.diagnosis ? 'cr-diagnosis-err' : undefined}
+                          aria-describedby={fieldErrors.diagnosis ? "cr-diagnosis-err" : undefined}
                           className="atrium-focusable text-[15px]"
-                          style={{ ...fieldStyle, borderColor: fieldErrors.diagnosis ? accentStrong : hairline }}
+                          style={{
+                            ...fieldStyle,
+                            borderColor: fieldErrors.diagnosis ? accentStrong : hairline,
+                          }}
                         />
                         {fieldErrors.diagnosis && (
                           <p
@@ -789,7 +844,11 @@ export default function Screen() {
                       </div>
 
                       <div>
-                        <Label htmlFor="cr-prescription" className={labelCls} style={{ color: muted }}>
+                        <Label
+                          htmlFor="cr-prescription"
+                          className={labelCls}
+                          style={{ color: muted }}
+                        >
                           Prescription (optional)
                         </Label>
                         <Textarea
@@ -804,20 +863,26 @@ export default function Screen() {
                           className="atrium-focusable text-[15px]"
                           style={areaStyle}
                         />
-                        <p id="cr-prescription-help" className="mt-2 text-xs" style={{ color: muted }}>
+                        <p
+                          id="cr-prescription-help"
+                          className="mt-2 text-xs"
+                          style={{ color: muted }}
+                        >
                           free text only — the patient sees this on her appointment.
                         </p>
                       </div>
 
-                      {saveState === 'saved' && (
+                      {saveState === "saved" && (
                         <Notice kind="success" className="atrium-fade">
-                          record filed for {selected.patient} · {selected.shortDate}, {selected.start} – {selected.end}.
-                          she can read it from her appointments page.
+                          record filed for {selected.patient} · {selected.shortDate},{" "}
+                          {selected.start} – {selected.end}. she can read it from her appointments
+                          page.
                         </Notice>
                       )}
-                      {saveState === 'error' && (
+                      {saveState === "error" && (
                         <Notice kind="error" className="atrium-fade">
-                          nothing was filed and your typing is still here. fix the fields marked above and save again.
+                          nothing was filed and your typing is still here. fix the fields marked
+                          above and save again.
                         </Notice>
                       )}
                     </div>
@@ -831,11 +896,16 @@ export default function Screen() {
                   <button
                     data-wf="b-5-0"
                     type="submit"
-                    disabled={!canEdit || saveState === 'saving'}
+                    disabled={!canEdit || saveState === "saving"}
                     className={`${pillBase} atrium-primary w-full min-h-[52px] text-base`}
-                    style={{ backgroundColor: ink, color: cream, fontFamily: brand.fontHeading, fontStyle: 'italic' }}
+                    style={{
+                      backgroundColor: ink,
+                      color: cream,
+                      fontFamily: brand.fontHeading,
+                      fontStyle: "italic",
+                    }}
                   >
-                    {saveState === 'saving' ? (
+                    {saveState === "saving" ? (
                       <>
                         <Icons.Clock className="h-4 w-4 animate-spin" aria-hidden="true" />
                         filing record…
@@ -862,13 +932,13 @@ export default function Screen() {
                       setStatusMsg(null);
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
+                      if (e.key === "Enter") {
                         e.preventDefault();
                         updateStatus();
                       }
                     }}
                     className="atrium-focusable text-[15px]"
-                    style={{ ...fieldStyle, minHeight: '52px' }}
+                    style={{ ...fieldStyle, minHeight: "52px" }}
                   >
                     <option value="scheduled">Scheduled</option>
                     <option value="completed">Completed</option>
@@ -883,7 +953,11 @@ export default function Screen() {
                     onClick={updateStatus}
                     disabled={!selected}
                     className={`${pillBase} atrium-ghost w-full min-h-[52px]`}
-                    style={{ border: `1px solid ${rgba(ink, 0.35)}`, color: ink, backgroundColor: 'transparent' }}
+                    style={{
+                      border: `1px solid ${rgba(ink, 0.35)}`,
+                      color: ink,
+                      backgroundColor: "transparent",
+                    }}
                   >
                     Update status
                   </button>
@@ -892,7 +966,10 @@ export default function Screen() {
 
               {statusMsg && (
                 <div className="mt-4 sm:max-w-3xl">
-                  <Notice kind={statusMsg.kind === 'success' ? 'success' : 'error'} className="atrium-fade">
+                  <Notice
+                    kind={statusMsg.kind === "success" ? "success" : "error"}
+                    className="atrium-fade"
+                  >
                     {statusMsg.text}
                   </Notice>
                 </div>
@@ -903,8 +980,8 @@ export default function Screen() {
 
         <div
           id="panel-availability"
-          role={tab === 'availability' ? 'tabpanel' : undefined}
-          aria-labelledby={tab === 'availability' ? 'tab-availability' : undefined}
+          role={tab === "availability" ? "tabpanel" : undefined}
+          aria-labelledby={tab === "availability" ? "tab-availability" : undefined}
         >
           {/* Row 7 — recurring weekly working hours */}
           <section
@@ -913,7 +990,10 @@ export default function Screen() {
             style={{ backgroundColor: rgba(ink, 0.06), borderRadius: brand.radius }}
           >
             <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <h2 className="text-[22px] leading-snug" style={{ fontFamily: brand.fontHeading, fontStyle: 'italic' }}>
+              <h2
+                className="text-[22px] leading-snug"
+                style={{ fontFamily: brand.fontHeading, fontStyle: "italic" }}
+              >
                 Recurring weekly working hours
               </h2>
               <p className="text-xs" style={{ color: muted }}>
@@ -936,7 +1016,7 @@ export default function Screen() {
                       setHoursMsg(null);
                     }}
                     className="atrium-focusable text-[15px]"
-                    style={{ ...fieldStyle, backgroundColor: paper, minHeight: '48px' }}
+                    style={{ ...fieldStyle, backgroundColor: paper, minHeight: "48px" }}
                   >
                     {DAYS.map((d) => (
                       <option key={d} value={d}>
@@ -962,8 +1042,8 @@ export default function Screen() {
                     style={{
                       ...fieldStyle,
                       backgroundColor: paper,
-                      minHeight: '48px',
-                      fontVariantNumeric: 'tabular-nums',
+                      minHeight: "48px",
+                      fontVariantNumeric: "tabular-nums",
                     }}
                   />
                 </div>
@@ -984,8 +1064,8 @@ export default function Screen() {
                     style={{
                       ...fieldStyle,
                       backgroundColor: paper,
-                      minHeight: '48px',
-                      fontVariantNumeric: 'tabular-nums',
+                      minHeight: "48px",
+                      fontVariantNumeric: "tabular-nums",
                     }}
                   />
                 </div>
@@ -1005,8 +1085,8 @@ export default function Screen() {
                     style={{
                       ...fieldStyle,
                       backgroundColor: paper,
-                      minHeight: '48px',
-                      fontVariantNumeric: 'tabular-nums',
+                      minHeight: "48px",
+                      fontVariantNumeric: "tabular-nums",
                     }}
                   >
                     {SLOT_LENGTHS.map((s) => (
@@ -1020,7 +1100,10 @@ export default function Screen() {
 
               {hoursMsg && (
                 <div className="mt-6 sm:max-w-3xl">
-                  <Notice kind={hoursMsg.kind === 'success' ? 'success' : 'error'} className="atrium-fade">
+                  <Notice
+                    kind={hoursMsg.kind === "success" ? "success" : "error"}
+                    className="atrium-fade"
+                  >
                     {hoursMsg.text}
                   </Notice>
                 </div>
@@ -1029,16 +1112,23 @@ export default function Screen() {
               {/* Row 8 — current hours + save */}
               <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
                 <section data-wf="b-7-0" className="lg:col-span-8">
-                  <h3 className="text-base" style={{ fontFamily: brand.fontHeading, fontStyle: 'italic' }}>
+                  <h3
+                    className="text-base"
+                    style={{ fontFamily: brand.fontHeading, fontStyle: "italic" }}
+                  >
                     Current hours
                   </h3>
                   {hours.length === 0 ? (
                     <p
                       className="mt-4 rounded-3xl px-6 py-6 text-sm leading-relaxed"
-                      style={{ backgroundColor: paper, color: muted, border: `1px solid ${hairline}` }}
+                      style={{
+                        backgroundColor: paper,
+                        color: muted,
+                        border: `1px solid ${hairline}`,
+                      }}
                     >
-                      no working hours saved yet. add a day above and save to generate bookable slots — patients
-                      can&rsquo;t find you until at least one range exists.
+                      no working hours saved yet. add a day above and save to generate bookable
+                      slots — patients can&rsquo;t find you until at least one range exists.
                     </p>
                   ) : (
                     <ul className="mt-4 space-y-3">
@@ -1046,19 +1136,30 @@ export default function Screen() {
                         <li
                           key={h.id}
                           data-wf={idx < 3 ? `i-7-0-${idx}` : undefined}
-                          className={h.isNew ? 'atrium-rise' : ''}
+                          className={h.isNew ? "atrium-rise" : ""}
                           style={{
                             backgroundColor: paper,
                             border: `1px solid ${hairline}`,
-                            borderRadius: '999px',
-                            padding: '14px 18px 14px 24px',
+                            borderRadius: "999px",
+                            padding: "14px 18px 14px 24px",
                           }}
                         >
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <span className="flex items-center gap-3">
-                              <Icons.Calendar className="h-4 w-4 shrink-0" style={{ color: accentStrong }} aria-hidden="true" />
-                              <span className="text-[15px]" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                                <span style={{ fontFamily: brand.fontHeading, fontStyle: 'italic' }}>{h.day}</span>{' '}
+                              <Icons.Calendar
+                                className="h-4 w-4 shrink-0"
+                                style={{ color: accentStrong }}
+                                aria-hidden="true"
+                              />
+                              <span
+                                className="text-[15px]"
+                                style={{ fontVariantNumeric: "tabular-nums" }}
+                              >
+                                <span
+                                  style={{ fontFamily: brand.fontHeading, fontStyle: "italic" }}
+                                >
+                                  {h.day}
+                                </span>{" "}
                                 {h.start} – {h.end} · {h.slot} min slots
                               </span>
                               {h.booked > 0 && (
@@ -1087,7 +1188,7 @@ export default function Screen() {
                             >
                               <p className="text-sm leading-relaxed">
                                 {h.booked > 0
-                                  ? `removing ${h.day.toLowerCase()} ${h.start} – ${h.end} affects ${h.booked} booked appointment${h.booked > 1 ? 's' : ''}. they stay booked and go to the clinic admin to move.`
+                                  ? `removing ${h.day.toLowerCase()} ${h.start} – ${h.end} affects ${h.booked} booked appointment${h.booked > 1 ? "s" : ""}. they stay booked and go to the clinic admin to move.`
                                   : `remove ${h.day.toLowerCase()} ${h.start} – ${h.end}? its free slots stop appearing to patients.`}
                               </p>
                               <div className="mt-4 flex flex-wrap gap-3">
@@ -1120,17 +1221,17 @@ export default function Screen() {
                   <button
                     data-wf="b-7-1"
                     type="submit"
-                    disabled={hoursState === 'saving'}
+                    disabled={hoursState === "saving"}
                     className={`${pillBase} atrium-ghost w-full min-h-[52px] text-base`}
                     style={{
                       border: `1px solid ${rgba(ink, 0.35)}`,
                       color: ink,
                       backgroundColor: paper,
                       fontFamily: brand.fontHeading,
-                      fontStyle: 'italic',
+                      fontStyle: "italic",
                     }}
                   >
-                    {hoursState === 'saving' ? (
+                    {hoursState === "saving" ? (
                       <>
                         <Icons.Clock className="h-4 w-4 animate-spin" aria-hidden="true" />
                         generating slots…
@@ -1156,15 +1257,15 @@ export default function Screen() {
             >
               <Icons.AlertCircle className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
               <span>
-                <span className="font-semibold">Warning:</span> shortening Monday hours affects 2 booked appointments.
-                Overlapping ranges on the same day are rejected.
+                <span className="font-semibold">Warning:</span> shortening Monday hours affects 2
+                booked appointments. Overlapping ranges on the same day are rejected.
               </span>
             </p>
             <div className="lg:col-span-4 lg:text-right">
               <button
                 data-wf="b-8-1"
                 type="button"
-                onClick={() => navigate('my-account')}
+                onClick={() => navigate("my-account")}
                 className="atrium-focusable inline-flex items-center gap-2 rounded-full px-2 py-2 text-sm underline-offset-4 hover:underline"
                 style={{ color: accentStrong }}
               >

@@ -7,13 +7,14 @@ without a database server is a scaffold nobody runs. Point `DATABASE_URL` at
 the real thing when it exists; nothing else has to change.
 """
 
-import os
 from collections.abc import Iterator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
+from app.config import settings
+
+DATABASE_URL = settings.database_url
 
 # SQLite rejects a connection made on one thread and used on another, which is
 # exactly what happens when FastAPI runs a sync dependency in its threadpool.
