@@ -83,6 +83,25 @@ class FirstLoginPasswordRequest(BaseModel):
     password: str = Field(min_length=8, max_length=255)
 
 
+class ProfileOut(BaseModel):
+    """GET /me/profile's response, and PUT /me/profile's on success (AC-014)."""
+
+    id: str
+    full_name: str
+    email: str
+    phone: str
+    role: str
+
+
+class ProfileUpdateRequest(BaseModel):
+    """PUT /me/profile's body: the whole profile, saved as given once every field
+    is valid (AC-014). Same shape and validation as registration."""
+
+    full_name: str = Field(min_length=1, max_length=255)
+    email: EmailStr
+    phone: str = Field(min_length=6, max_length=32, pattern=r"^[0-9+\-() ]+$")
+
+
 class StubResponse(BaseModel):
     """What a generated route returns until someone implements it.
 

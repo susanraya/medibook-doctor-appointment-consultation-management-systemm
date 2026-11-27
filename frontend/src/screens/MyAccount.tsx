@@ -6,6 +6,7 @@ import * as UI from "@/lib/ui";
 import { Icons } from "@/lib/icons";
 import { brand } from "@/lib/brand";
 import { useNavigate } from "@/lib/navigate";
+import { ApiError, apiFetch } from "@/lib/api";
 
 const { Button, Input, Textarea, Label, Select, Badge, Avatar, Separator } = UI;
 
@@ -24,22 +25,9 @@ const SPECIALIZATIONS = [
   { id: "sp-10", name: "Rheumatology", is_active: false },
 ];
 
-// emails already held by another account — checked server-side on PUT /me/profile
-const EMAILS_IN_USE = [
-  "m.adeyemi@atriumclinic.test",
-  "j.whitfield@mailbox.test",
-  "priya.nair@atriumclinic.test",
-];
-
-const ACCOUNT = {
-  id: "usr-2041",
-  role: "doctor",
-  full_name: "Dr. Susan Raya",
-  email: "susan.raya@quorq.ai",
-  phone: "+44 7700 900412",
-  created_at: "18 Mar 2024",
-  last_saved: "14 Nov 2026, 09:14",
-};
+// The profile API (GET/PUT /me/profile) has no "member since" field; this is
+// decorative only and not sent anywhere.
+const CREATED_AT_LABEL = "18 Mar 2024";
 
 const DOCTOR_PROFILE = {
   specialization_id: "sp-02",
@@ -78,28 +66,57 @@ export default function Screen() {
   const hair = hexA(ink, 0.13);
   const tint = hexA(ink, 0.06);
 
-  const initial = React.useMemo(
-    () => ({
-      full_name: ACCOUNT.full_name,
-      email: ACCOUNT.email,
-      phone: ACCOUNT.phone,
-      specialization_id: DOCTOR_PROFILE.specialization_id,
-      bio: DOCTOR_PROFILE.bio,
-      contact: DOCTOR_PROFILE.contact,
-    }),
-    [],
-  );
+  const EMPTY_FORM = {
+    full_name: "",
+    email: "",
+    phone: "",
+    specialization_id: DOCTOR_PROFILE.specialization_id,
+    bio: DOCTOR_PROFILE.bio,
+    contact: DOCTOR_PROFILE.contact,
+  };
 
-  const [form, setForm] = React.useState(initial);
-  const [saved, setSaved] = React.useState(initial);
+  const [account, setAccount] = React.useState(null); // ProfileOut from GET /me/profile
+  const [profileLoading, setProfileLoading] = React.useState(true);
+  const [profileError, setProfileError] = React.useState(false);
+  const [reloadToken, setReloadToken] = React.useState(0);
+
+  const [form, setForm] = React.useState(EMPTY_FORM);
+  const [saved, setSaved] = React.useState(EMPTY_FORM);
   const [errors, setErrors] = React.useState({});
-  const [status, setStatus] = React.useState("idle"); // idle | saving | saved | taken
-  const [lastSaved, setLastSaved] = React.useState(ACCOUNT.last_saved);
-  const timer = React.useRef(null);
+  const [status, setStatus] = React.useState("idle"); // idle | saving | saved | taken | error
+  const [lastSaved, setLastSaved] = React.useState(null);
 
-  React.useEffect(() => () => clearTimeout(timer.current), []);
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setProfileLoading(true);
+      setProfileError(false);
+      try {
+        const me = await apiFetch("/me/profile");
+        if (cancelled) return;
+        const next = {
+          full_name: me.full_name,
+          email: me.email,
+          phone: me.phone,
+          specialization_id: DOCTOR_PROFILE.specialization_id,
+          bio: DOCTOR_PROFILE.bio,
+          contact: DOCTOR_PROFILE.contact,
+        };
+        setAccount(me);
+        setForm(next);
+        setSaved(next);
+      } catch {
+        if (!cancelled) setProfileError(true);
+      } finally {
+        if (!cancelled) setProfileLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadToken]);
 
-  const isDoctor = ACCOUNT.role === "doctor";
+  const isDoctor = account?.role === "doctor";
   const dirty = JSON.stringify(form) !== JSON.stringify(saved);
   const activeSpecs = SPECIALIZATIONS.filter((s) => s.is_active);
   const specName = (SPECIALIZATIONS.find((s) => s.id === form.specialization_id) || {}).name || "";
@@ -107,7 +124,7 @@ export default function Screen() {
   function set(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
     setErrors((e) => (e[key] ? { ...e, [key]: undefined } : e));
-    if (status === "taken" || status === "saved") setStatus("idle");
+    if (status === "taken" || status === "saved" || status === "error") setStatus("idle");
   }
 
   function validate(v) {
@@ -128,7 +145,7 @@ export default function Screen() {
     return e;
   }
 
-  function handleSubmit(ev) {
+  async function handleSubmit(ev) {
     ev.preventDefault();
     const e = validate(form);
     setErrors(e);
@@ -139,16 +156,40 @@ export default function Screen() {
       return;
     }
     setStatus("saving");
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      if (EMAILS_IN_USE.indexOf(form.email.trim().toLowerCase()) !== -1) {
+    try {
+      const updated = await apiFetch("/me/profile", {
+        method: "PUT",
+        body: JSON.stringify({
+          full_name: form.full_name.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+        }),
+      });
+      const next = {
+        ...form,
+        full_name: updated.full_name,
+        email: updated.email,
+        phone: updated.phone,
+      };
+      setAccount(updated);
+      setForm(next);
+      setSaved(next);
+      setLastSaved("just now");
+      setStatus("saved");
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
         setStatus("taken"); // input values are kept exactly as typed
+      } else if (err instanceof ApiError && err.status === 422 && Array.isArray(err.detail)) {
+        const fieldErrs = {};
+        for (const item of err.detail) {
+          if (item && typeof item.field === "string") fieldErrs[item.field] = item.message;
+        }
+        setErrors(fieldErrs);
+        setStatus("idle");
       } else {
-        setSaved(form);
-        setLastSaved("16 Nov 2026, " + new Date().toTimeString().slice(0, 5));
-        setStatus("saved");
+        setStatus("error");
       }
-    }, 900);
+    }
   }
 
   const css = `
@@ -202,6 +243,50 @@ export default function Screen() {
     );
   }
 
+  if (profileLoading) {
+    return (
+      <div className="atr w-full min-h-full" style={{ fontFamily: brand.fontBody, color: ink }}>
+        <style>{css}</style>
+        <div className="mx-auto w-full max-w-[1120px] px-6 sm:px-8 pt-24 pb-20">
+          <p
+            role="status"
+            className="flex items-center gap-2.5 text-[15px]"
+            style={{ color: inkSoft }}
+          >
+            <span
+              className="atr-spin inline-block h-4 w-4 rounded-full"
+              style={{ border: "2px solid " + hexA(ink, 0.25), borderTopColor: ink }}
+              aria-hidden="true"
+            />
+            Loading your profile…
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (profileError) {
+    return (
+      <div className="atr w-full min-h-full" style={{ fontFamily: brand.fontBody, color: ink }}>
+        <style>{css}</style>
+        <div className="mx-auto w-full max-w-[1120px] px-6 sm:px-8 pt-24 pb-20">
+          <p role="alert" className="flex items-start gap-2.5 text-[15px]" style={{ color: ink }}>
+            <AlertCircle className="h-5 w-5 shrink-0 mt-[1px]" aria-hidden="true" />
+            <span>We could not load your profile. Please try again.</span>
+          </p>
+          <Button
+            type="button"
+            onClick={() => setReloadToken((n) => n + 1)}
+            className="atr-btn mt-5 rounded-full px-6 h-12 text-[14px] border-0"
+            style={{ backgroundColor: ink, color: cream }}
+          >
+            Try again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="atr w-full min-h-full" style={{ fontFamily: brand.fontBody, color: ink }}>
       <style>{css}</style>
@@ -234,7 +319,7 @@ export default function Screen() {
             <div>
               <dt className="lowercase tracking-[0.03em]">account</dt>
               <dd className="mt-1 font-medium" style={{ color: ink }}>
-                doctor · {ACCOUNT.id}
+                {account.role} · {account.id}
               </dd>
             </div>
             <div className="h-8 w-px" style={{ backgroundColor: hair }} aria-hidden="true" />
@@ -244,7 +329,7 @@ export default function Screen() {
                 className="mt-1 font-medium"
                 style={{ color: ink, fontVariantNumeric: "tabular-nums" }}
               >
-                {ACCOUNT.created_at}
+                {CREATED_AT_LABEL}
               </dd>
             </div>
           </dl>
@@ -586,15 +671,29 @@ export default function Screen() {
                   checking the email is free, then writing your profile…
                 </p>
               )}
+              {status === "error" && (
+                <p
+                  className="atr-enter flex items-start gap-2.5 text-[14px] leading-[1.55]"
+                  style={{ color: ink }}
+                >
+                  <AlertCircle className="h-5 w-5 shrink-0 mt-[1px]" aria-hidden="true" />
+                  <span>
+                    something went wrong saving your profile — your edits are still here, please try
+                    again.
+                  </span>
+                </p>
+              )}
               {status === "idle" && (
                 <p className="text-[14px] leading-[1.55]" style={{ color: inkSoft }}>
                   {dirty ? (
                     <>unsaved edits on this page. nothing reaches patients until you save.</>
-                  ) : (
+                  ) : lastSaved ? (
                     <>
                       nothing to save — this matches what the clinic has on file. last change{" "}
                       <span style={{ fontVariantNumeric: "tabular-nums" }}>{lastSaved}</span>.
                     </>
+                  ) : (
+                    <>nothing to save — this matches what the clinic has on file.</>
                   )}
                 </p>
               )}
@@ -645,7 +744,7 @@ export default function Screen() {
                   recorded
                 </Badge>
                 <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                  timestamped for audit · account {ACCOUNT.id}
+                  timestamped for audit · account {account.id}
                 </span>
               </div>
             </div>

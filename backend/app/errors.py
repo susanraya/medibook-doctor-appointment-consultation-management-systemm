@@ -1,0 +1,12 @@
+"""Error codes the API returns, one constant per error.
+
+Each constant pairs the HTTP status with the message shown to the user. A
+route declares these in its `responses=` mapping so the OpenAPI document
+carries the full contract (step 1); the route body raises the matching
+`fastapi.HTTPException(status_code=..., detail=...)` (step 2).
+"""
+
+EMAIL_ALREADY_IN_USE = {
+    "status_code": 409,
+    "detail": "That email is already in use",
+}
