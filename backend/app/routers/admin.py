@@ -11,7 +11,7 @@ module is not ours to extend, so the adapting happens here, in front of the
 unchanged `app.services` functions (which still work in terms of ids).
 """
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session as DBSession
 
 from app import services
@@ -21,7 +21,7 @@ from app.errors import (
     EMAIL_ALREADY_IN_USE,
     MAPPING_NOT_FOUND,
 )
-from app.models import DiseaseMapping, Specialization, User
+from app.models import Appointment, DiseaseMapping, Specialization, User
 from app.schemas import (
     AdminCreateUserRequest,
     AdminUserListOut,
@@ -68,6 +68,7 @@ def _admin_user_out(user: User, specialization_id: str | None = None) -> AdminUs
 async def provision_user(
     request: Request,
     payload: AdminCreateUserRequest,
+    response: Response,
     db: DBSession = _db,
     _admin: User = _require_admin,
 ) -> dict:
@@ -81,6 +82,61 @@ async def provision_user(
         if isinstance(specialization_name, str) and specialization_name.strip()
         else None
     )
+
+    existing_user = db.query(User).filter(User.email == payload.email).first()
+    if existing_user is not None and existing_user.role == "doctor" and payload.role == "doctor":
+        # AC-048: posting the same email again edits that doctor's record
+        # (here, the specialization) rather than conflicting with it.
+        if not specialization_name:
+            raise HTTPException(
+                status_code=422,
+                detail=[
+                    {
+                        "field": "specialization",
+                        "message": "A doctor account requires a specialization",
+                    }
+                ],
+            )
+        specialization = (
+            db.query(Specialization).filter(Specialization.name == specialization_name).first()
+        )
+        if specialization is None:
+            if not services.is_recognized_specialization(specialization_name):
+                # AC-048: an edit naming a specialization that is neither
+                # already in the admin-defined list nor a real medical
+                # specialization is undefined -- rejected, leaving the
+                # doctor's current specialization untouched, rather than
+                # silently adding it to the list.
+                raise HTTPException(
+                    status_code=422,
+                    detail=[
+                        {
+                            "field": "specialization",
+                            "message": f"Specialization not found: {specialization_name}",
+                        }
+                    ],
+                )
+            # Same reading as a first-time creation naming an unseen
+            # specialization (see below): this sprint's own test cases name
+            # one in their preconditions without ever calling
+            # POST /admin/specializations first, so naming it here adds it to
+            # the admin-defined list the same way an explicit call would.
+            specialization = services.create_specialization(db, specialization_name)
+        saved_specialization_id = services.update_doctor_specialization(
+            db, existing_user, specialization
+        )
+        response.status_code = 200
+        return {
+            "id": existing_user.id,
+            "full_name": existing_user.full_name,
+            "email": existing_user.email,
+            "phone": existing_user.phone,
+            "role": existing_user.role,
+            "is_active": existing_user.is_active,
+            "password_status": existing_user.password_status,
+            "specialization_id": saved_specialization_id,
+            "specialization": existing_user.specialization,
+        }
 
     if payload.role == "doctor" and not specialization_id:
         if not specialization_name:
@@ -165,9 +221,25 @@ async def override_doctor_availability(doctor_id: str) -> StubResponse:
     return StubResponse(endpoint=f"PUT /admin/doctors/{doctor_id}/availability")
 
 
-@router.get("/appointments", response_model=StubResponse)
-async def list_all_appointments() -> StubResponse:
-    return StubResponse(endpoint="GET /admin/appointments")
+@router.get("/appointments")
+async def list_all_appointments(db: DBSession = _db, _admin: User = _require_admin) -> dict:
+    # AC-049: surfaces every appointment, including one flagged for
+    # reassignment or cancellation after its doctor was deactivated.
+    appointments = db.query(Appointment).order_by(Appointment.created_at).all()
+    return {
+        "appointments": [
+            {
+                "id": appointment.id,
+                "slot_id": appointment.slot_id,
+                "patient_id": appointment.patient_id,
+                "doctor_id": appointment.doctor_id,
+                "status": appointment.status,
+                "needs_reassignment": appointment.needs_reassignment,
+                "start_time": appointment.start_time,
+            }
+            for appointment in appointments
+        ]
+    }
 
 
 @router.put("/appointments/{id}/reassign", response_model=StubResponse)

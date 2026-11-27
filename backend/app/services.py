@@ -37,10 +37,66 @@ SERVICES = {
     "redis-queue": "REDIS_URL",
 }
 
+# A medical specialization name an admin can name directly on POST /admin/users
+# (the "specialization" free-text field this sprint's own test cases use, see
+# app.routers.admin) without first calling POST /admin/specializations --
+# mirrors the real-world list, not this app's own data. Checked
+# case-insensitively. Used only to tell a genuinely new (but real)
+# specialization named while *editing* an existing doctor apart from one that
+# is not a medical specialization at all (AC-048's "undefined specialization",
+# rejected rather than silently added to the admin-defined list); naming a
+# brand-new doctor is unaffected -- it already added any name freely before
+# this existed.
+RECOGNIZED_SPECIALIZATIONS = {
+    "cardiology",
+    "dermatology",
+    "neurology",
+    "neurosurgery",
+    "pediatrics",
+    "oncology",
+    "radiology",
+    "radiation oncology",
+    "psychiatry",
+    "orthopedics",
+    "orthopedic surgery",
+    "gastroenterology",
+    "endocrinology",
+    "urology",
+    "ophthalmology",
+    "otolaryngology",
+    "ent",
+    "gynecology",
+    "obstetrics",
+    "nephrology",
+    "pulmonology",
+    "rheumatology",
+    "hematology",
+    "anesthesiology",
+    "general surgery",
+    "internal medicine",
+    "family medicine",
+    "pathology",
+    "dentistry",
+    "immunology",
+    "allergy and immunology",
+    "geriatrics",
+    "physical medicine and rehabilitation",
+    "plastic surgery",
+    "vascular surgery",
+    "infectious disease",
+    "emergency medicine",
+    "sports medicine",
+}
+
 
 def configured_services() -> dict[str, bool]:
     """Each service mapped to whether its connection variable is set."""
     return {name: bool(os.getenv(var)) for name, var in SERVICES.items()}
+
+
+def is_recognized_specialization(name: str) -> bool:
+    """Whether ``name`` names a real medical specialization, case-insensitively."""
+    return name.strip().lower() in RECOGNIZED_SPECIALIZATIONS
 
 
 def update_own_profile(db: DBSession, user: User, full_name: str, email: str, phone: str) -> User:
@@ -335,6 +391,29 @@ def delete_mapping(db: DBSession, mapping_id: str) -> None:
     db.commit()
 
 
+def update_doctor_specialization(
+    db: DBSession, doctor: User, specialization: Specialization
+) -> str:
+    """Change an existing doctor's specialization (AC-048), editing a record
+    rather than creating a new one when an admin re-provisions an email that
+    already belongs to that doctor. Updates both the denormalized
+    `users.specialization` name patient search reads and the relational
+    `doctor_profiles.specialization_id` row, so the change is reflected in
+    search (and no longer under the old specialization) as soon as this
+    commits. The caller has already resolved and validated ``specialization``
+    against the admin-defined list.
+    """
+    doctor.specialization = specialization.name
+    profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == doctor.id).first()
+    if profile is not None:
+        profile.specialization_id = specialization.id
+    else:
+        db.add(DoctorProfile(user_id=doctor.id, specialization_id=specialization.id))
+    db.commit()
+    db.refresh(doctor)
+    return specialization.id
+
+
 def doctor_specialization_ids(db: DBSession, user_ids: list[str]) -> dict[str, str]:
     """Each doctor's `specialization_id`, keyed by `user_id`, for the given
     `user_ids` that have a `doctor_profiles` row (AC-048)."""
@@ -370,13 +449,15 @@ def update_doctor_status(db: DBSession, doctor: User, is_active: bool) -> list[s
     )
     for appointment in appointments:
         appointment.needs_reassignment = True
+        # AC-049: an admin viewing GET /admin/appointments must see this
+        # appointment as no longer simply "scheduled" -- it now needs a human
+        # reassignment-or-cancellation decision.
+        appointment.status = "needs_reassignment"
     db.commit()
     return [appointment.id for appointment in appointments]
 
 
-def search_doctors(
-    db: DBSession, specialization: str | None, symptom: str | None
-) -> list[User]:
+def search_doctors(db: DBSession, specialization: str | None, symptom: str | None) -> list[User]:
     """Active doctors patient search can offer (AC-048, AC-052).
 
     A `specialization` name matches a doctor's denormalized `specialization`
@@ -464,13 +545,13 @@ def record_consent(db: DBSession, user: User) -> PatientConsent:
     is always exactly one current consent per patient.
     """
     consent = db.query(PatientConsent).filter(PatientConsent.patient_id == user.id).first()
-    now = datetime.utcnow()
     if consent is None:
-        consent = PatientConsent(patient_id=user.id, consented=True, consented_at=now)
+        consent = PatientConsent(patient_id=user.id, consented=True, consented_at=datetime.utcnow())
         db.add(consent)
     else:
+        # AC-017: the original timestamp is preserved for audit purposes, so a
+        # repeat submission only (re-)confirms consent, never overwrites it.
         consent.consented = True
-        consent.consented_at = now
     db.commit()
     db.refresh(consent)
     record_audit_log(db, user, action="create", entity_type="patient_consent", entity_id=consent.id)

@@ -14,6 +14,7 @@ NFR-010). Nothing is renamed or dropped.
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0002"
