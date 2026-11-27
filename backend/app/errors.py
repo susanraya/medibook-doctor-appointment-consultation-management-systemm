@@ -15,3 +15,13 @@ CONSENT_REQUIRED = {
     "status_code": 403,
     "detail": "Give consent to store and process your health data before you continue",
 }
+
+SPECIALIZATION_NOT_FOUND = {
+    "status_code": 404,
+    "detail": "Specialization not found",
+}
+
+DOCTOR_NOT_FOUND = {
+    "status_code": 404,
+    "detail": "Doctor not found",
+}

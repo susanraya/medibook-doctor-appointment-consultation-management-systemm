@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.database import get_db
 from app.deps import require_role
-from app.models import STAFF_PASSWORD_PLACEHOLDER, User
+from app.errors import EMAIL_ALREADY_IN_USE, SPECIALIZATION_NOT_FOUND
+from app.models import User
 from app.schemas import (
     AdminCreateUserRequest,
     AdminUserListOut,
@@ -19,6 +20,7 @@ from app.schemas import (
     UserStatusOut,
     UserStatusUpdateRequest,
 )
+from app.services import create_staff_account, doctor_specialization_ids
 from app.sessions import revoke_all_sessions
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -27,7 +29,7 @@ _require_admin = Depends(require_role("admin"))
 _db = Depends(get_db)
 
 
-def _admin_user_out(user: User) -> AdminUserOut:
+def _admin_user_out(user: User, specialization_id: str | None = None) -> AdminUserOut:
     return AdminUserOut(
         id=user.id,
         full_name=user.full_name,
@@ -36,32 +38,33 @@ def _admin_user_out(user: User) -> AdminUserOut:
         role=user.role,
         is_active=user.is_active,
         password_status=user.password_status,
+        specialization_id=specialization_id,
     )
 
 
-@router.post("/users", response_model=AdminUserOut, status_code=201)
+@router.post(
+    "/users",
+    response_model=AdminUserOut,
+    status_code=201,
+    responses={
+        EMAIL_ALREADY_IN_USE["status_code"]: {"description": EMAIL_ALREADY_IN_USE["detail"]},
+        SPECIALIZATION_NOT_FOUND["status_code"]: {
+            "description": SPECIALIZATION_NOT_FOUND["detail"]
+        },
+    },
+)
 async def provision_user(
     payload: AdminCreateUserRequest, db: DBSession = _db, _admin: User = _require_admin
 ) -> AdminUserOut:
-    existing = db.query(User).filter(User.email == payload.email).first()
-    if existing is not None:
-        raise HTTPException(status_code=409, detail="That email is already in use")
-
-    # NFR-010: no real credential is ever stored for a staff account an admin
-    # provisions -- password_hash stays unset until POST /auth/first-login-password.
-    user = User(
+    user, specialization_id = create_staff_account(
+        db,
+        full_name=payload.full_name,
         email=payload.email,
         phone=payload.phone,
-        password_hash=None,
         role=payload.role,
-        full_name=payload.full_name,
-        is_active=True,
-        password_status=STAFF_PASSWORD_PLACEHOLDER,
+        specialization_id=payload.specialization_id,
     )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return _admin_user_out(user)
+    return _admin_user_out(user, specialization_id=specialization_id)
 
 
 @router.get("/users", response_model=AdminUserListOut)
@@ -72,7 +75,10 @@ async def list_users(
     if role:
         query = query.filter(User.role == role)
     users = query.order_by(User.created_at).all()
-    return AdminUserListOut(users=[_admin_user_out(u) for u in users])
+    specializations = doctor_specialization_ids(db, [u.id for u in users])
+    return AdminUserListOut(
+        users=[_admin_user_out(u, specialization_id=specializations.get(u.id)) for u in users]
+    )
 
 
 @router.put("/users/{user_id}/status", response_model=UserStatusOut)
@@ -97,11 +103,6 @@ async def set_user_status(
 @router.put("/doctors/{doctor_id}/availability", response_model=StubResponse)
 async def override_doctor_availability(doctor_id: str) -> StubResponse:
     return StubResponse(endpoint=f"PUT /admin/doctors/{doctor_id}/availability")
-
-
-@router.put("/doctors/{doctor_id}/status", response_model=StubResponse)
-async def set_doctor_status(doctor_id: str) -> StubResponse:
-    return StubResponse(endpoint=f"PUT /admin/doctors/{doctor_id}/status")
 
 
 @router.get("/appointments", response_model=StubResponse)

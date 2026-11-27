@@ -162,6 +162,9 @@ class Appointment(Base):
     doctor_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
     status: Mapped[str] = mapped_column(String(16), default="scheduled")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    # Set when the treating doctor is deactivated while this appointment is still
+    # scheduled, so an admin can act on it (AC-049). Never cleared automatically.
+    needs_reassignment: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class ConsultationRecord(Base):

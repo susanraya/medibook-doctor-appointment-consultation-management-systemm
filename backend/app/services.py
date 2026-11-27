@@ -11,8 +11,17 @@ from datetime import datetime
 from fastapi import HTTPException
 from sqlalchemy.orm import Session as DBSession
 
-from app.errors import CONSENT_REQUIRED, EMAIL_ALREADY_IN_USE
-from app.models import AuditLog, PatientConsent, User
+from app.errors import CONSENT_REQUIRED, EMAIL_ALREADY_IN_USE, SPECIALIZATION_NOT_FOUND
+from app.models import (
+    STAFF_PASSWORD_PLACEHOLDER,
+    Appointment,
+    AuditLog,
+    DoctorProfile,
+    PatientConsent,
+    Specialization,
+    User,
+)
+from app.sessions import revoke_all_sessions
 
 SERVICES = {
     "redis-queue": "REDIS_URL",
@@ -45,6 +54,105 @@ def update_own_profile(db: DBSession, user: User, full_name: str, email: str, ph
     db.commit()
     db.refresh(user)
     return user
+
+
+def create_staff_account(
+    db: DBSession,
+    *,
+    full_name: str,
+    email: str,
+    phone: str,
+    role: str,
+    specialization_id: str | None,
+) -> tuple[User, str | None]:
+    """Provision a doctor or admin account (AC-048).
+
+    A doctor account's specialization is validated against `specializations`
+    and saved to `doctor_profiles` -- the row patient search reads -- so the
+    doctor is reflected there as soon as this commits; an admin account gets
+    no such profile. Raises EMAIL_ALREADY_IN_USE when the email is already
+    taken, and SPECIALIZATION_NOT_FOUND when a doctor's `specialization_id`
+    does not match an existing specialization.
+    """
+    existing = db.query(User).filter(User.email == email).first()
+    if existing is not None:
+        raise HTTPException(
+            status_code=EMAIL_ALREADY_IN_USE["status_code"],
+            detail=EMAIL_ALREADY_IN_USE["detail"],
+        )
+
+    if role == "doctor":
+        specialization = (
+            db.query(Specialization).filter(Specialization.id == specialization_id).first()
+        )
+        if specialization is None:
+            raise HTTPException(
+                status_code=SPECIALIZATION_NOT_FOUND["status_code"],
+                detail=SPECIALIZATION_NOT_FOUND["detail"],
+            )
+
+    # NFR-010: no real credential is ever stored for a staff account an admin
+    # provisions -- password_hash stays unset until POST /auth/first-login-password.
+    user = User(
+        email=email,
+        phone=phone,
+        password_hash=None,
+        role=role,
+        full_name=full_name,
+        is_active=True,
+        password_status=STAFF_PASSWORD_PLACEHOLDER,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    saved_specialization_id: str | None = None
+    if role == "doctor":
+        profile = DoctorProfile(user_id=user.id, specialization_id=specialization_id)
+        db.add(profile)
+        db.commit()
+        saved_specialization_id = specialization_id
+
+    return user, saved_specialization_id
+
+
+def doctor_specialization_ids(db: DBSession, user_ids: list[str]) -> dict[str, str]:
+    """Each doctor's `specialization_id`, keyed by `user_id`, for the given
+    `user_ids` that have a `doctor_profiles` row (AC-048)."""
+    if not user_ids:
+        return {}
+    profiles = db.query(DoctorProfile).filter(DoctorProfile.user_id.in_(user_ids)).all()
+    return {profile.user_id: profile.specialization_id for profile in profiles}
+
+
+def update_doctor_status(db: DBSession, doctor: User, is_active: bool) -> list[str]:
+    """Deactivate or reactivate a doctor account (AC-049).
+
+    Deactivating ends every live session immediately (NFR-002) -- the doctor
+    cannot keep using a session started before this call -- and flags every
+    still-scheduled appointment of theirs so an admin can reassign or cancel
+    it. Reactivating only restores sign-in and the account's active status;
+    an appointment already flagged still needs that same human decision, so
+    flags are never cleared automatically. Returns the ids of the
+    appointments flagged by this call (empty on reactivation).
+    """
+    doctor.is_active = is_active
+    db.commit()
+
+    if is_active:
+        return []
+
+    revoke_all_sessions(db, doctor.id)
+
+    appointments = (
+        db.query(Appointment)
+        .filter(Appointment.doctor_id == doctor.id, Appointment.status == "scheduled")
+        .all()
+    )
+    for appointment in appointments:
+        appointment.needs_reassignment = True
+    db.commit()
+    return [appointment.id for appointment in appointments]
 
 
 def record_audit_log(

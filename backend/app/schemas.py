@@ -7,7 +7,7 @@ generated route returns until it has been implemented.
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ValidationInfo, field_validator
 
 
 class RegisterRequest(BaseModel):
@@ -43,17 +43,31 @@ class AuthResponse(BaseModel):
 
 
 class AdminCreateUserRequest(BaseModel):
-    """POST /admin/users's body: a doctor or admin account (US-003)."""
+    """POST /admin/users's body: a doctor or admin account (US-003). A doctor
+    account also carries the specialization that places them in patient
+    search (AC-048); an admin account carries none."""
 
     full_name: str = Field(min_length=1, max_length=255)
     email: EmailStr
     phone: str = Field(min_length=6, max_length=32, pattern=r"^[0-9+\-() ]+$")
     role: Literal["doctor", "admin"]
+    specialization_id: str | None = None
+
+    @field_validator("specialization_id")
+    @classmethod
+    def _specialization_required_for_doctor(
+        cls, value: str | None, info: ValidationInfo
+    ) -> str | None:
+        if info.data.get("role") == "doctor" and not value:
+            raise ValueError("A doctor account requires a specialization")
+        return value
 
 
 class AdminUserOut(BaseModel):
     """A provisioned staff account. password_status is a placeholder or 'set',
-    never a credential (NFR-010)."""
+    never a credential (NFR-010). specialization_id is set for a doctor,
+    reflecting the profile patient search reads (AC-048), and None for an
+    admin."""
 
     id: str
     full_name: str
@@ -62,6 +76,7 @@ class AdminUserOut(BaseModel):
     role: str
     is_active: bool
     password_status: str
+    specialization_id: str | None = None
 
 
 class AdminUserListOut(BaseModel):
@@ -75,6 +90,22 @@ class UserStatusUpdateRequest(BaseModel):
 class UserStatusOut(BaseModel):
     id: str
     is_active: bool
+
+
+class DoctorStatusUpdateRequest(BaseModel):
+    """PUT /admin/doctors/{doctor_id}/status's body (AC-049)."""
+
+    is_active: bool
+
+
+class DoctorStatusOut(BaseModel):
+    """PUT /admin/doctors/{doctor_id}/status's response: confirms the toggle
+    and, on deactivation, lists the appointments flagged for reassignment or
+    cancellation so the admin can act on them (AC-049)."""
+
+    id: str
+    is_active: bool
+    flagged_appointment_ids: list[str] = []
 
 
 class FirstLoginPasswordRequest(BaseModel):

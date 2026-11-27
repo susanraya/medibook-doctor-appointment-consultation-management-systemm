@@ -29,6 +29,7 @@ const staffUser = (overrides: Record<string, unknown> = {}) => ({
   role: "doctor",
   is_active: true,
   password_status: "<set-at-first-login>",
+  specialization_id: "SPC-001",
   ...overrides,
 });
 
@@ -52,6 +53,17 @@ describe("AdminConsole staff accounts", () => {
     renderScreen();
     expect(await screen.findByText("a.rao@clinic.example")).toBeInTheDocument();
     expect(screen.getByText("Dr. Anita Rao", { selector: "div" })).toBeInTheDocument();
+  });
+
+  it("[AC-048] a doctor's specialization is shown next to their row", async () => {
+    stubFetch((url) => {
+      if (url.endsWith("/admin/users")) {
+        return new Response(JSON.stringify({ users: [staffUser()] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    });
+    renderScreen();
+    expect(await screen.findByText("Cardiology", { selector: "td" })).toBeInTheDocument();
   });
 
   it("[AC-008] provisioning posts the form and the new account appears with its role", async () => {
@@ -93,6 +105,67 @@ describe("AdminConsole staff accounts", () => {
     expect(await screen.findByText("i.hartley@meadowlane.health")).toBeInTheDocument();
   });
 
+  it("[AC-048] creating a doctor requires a specialization before it posts", async () => {
+    stubFetch((url) => {
+      if (url.endsWith("/admin/users")) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    });
+    const user = userEvent.setup();
+    renderScreen();
+    await screen.findByText("no staff accounts yet");
+    await user.type(screen.getByLabelText("Full name"), "Dr. Imogen Hartley");
+    await user.type(screen.getByLabelText("Email"), "i.hartley@meadowlane.health");
+    await user.type(screen.getByLabelText("Phone"), "02079460000");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+    expect(
+      await screen.findByText("a specialization is needed so they appear in patient search."),
+    ).toBeInTheDocument();
+  });
+
+  it("[AC-048] creating a doctor sends the chosen specialization_id and the new row shows its name", async () => {
+    stubFetch((url, init) => {
+      if (url.endsWith("/admin/users") && (!init || init.method === undefined)) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (url.endsWith("/admin/users") && init?.method === "POST") {
+        const body = JSON.parse(String(init.body));
+        expect(body).toEqual({
+          full_name: "Dr. Imogen Hartley",
+          email: "i.hartley@meadowlane.health",
+          phone: "02079460000",
+          role: "doctor",
+          specialization_id: "SPC-002",
+        });
+        return new Response(
+          JSON.stringify({
+            id: "u-3",
+            full_name: "Dr. Imogen Hartley",
+            email: "i.hartley@meadowlane.health",
+            phone: "02079460000",
+            role: "doctor",
+            is_active: true,
+            password_status: "<set-at-first-login>",
+            specialization_id: "SPC-002",
+          }),
+          { status: 201 },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    });
+    const user = userEvent.setup();
+    renderScreen();
+    await screen.findByText("no staff accounts yet");
+    await user.type(screen.getByLabelText("Full name"), "Dr. Imogen Hartley");
+    await user.type(screen.getByLabelText("Email"), "i.hartley@meadowlane.health");
+    await user.type(screen.getByLabelText("Phone"), "02079460000");
+    await user.selectOptions(screen.getByLabelText("Specialization"), "SPC-002");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+    expect(await screen.findByText("i.hartley@meadowlane.health")).toBeInTheDocument();
+    expect(await screen.findByText("Dermatology", { selector: "td" })).toBeInTheDocument();
+  });
+
   it("[AC-009] a 403 renders 'not available for your role' rather than data", async () => {
     stubFetch(() => new Response(JSON.stringify({ detail: "Forbidden" }), { status: 403 }));
     renderScreen();
@@ -127,6 +200,7 @@ describe("AdminConsole staff accounts", () => {
     await user.type(screen.getByLabelText("Full name"), "Dr. Imogen Hartley");
     await user.type(screen.getByLabelText("Email"), "taken@meadowlane.health");
     await user.type(screen.getByLabelText("Phone"), "02079460000");
+    await user.selectOptions(screen.getByLabelText("Specialization"), "SPC-001");
     await user.click(screen.getByRole("button", { name: "Create account" }));
     expect(await screen.findByText("that email is already in use.")).toBeInTheDocument();
   });
@@ -149,18 +223,26 @@ describe("AdminConsole staff accounts", () => {
     await user.type(screen.getByLabelText("Full name"), "Dr. Imogen Hartley");
     await user.type(screen.getByLabelText("Email"), "i.hartley@meadowlane.health");
     await user.type(screen.getByLabelText("Phone"), "bad-phone");
+    await user.selectOptions(screen.getByLabelText("Specialization"), "SPC-001");
     await user.click(screen.getByRole("button", { name: "Create account" }));
     expect(await screen.findByText("that phone number looks invalid")).toBeInTheDocument();
   });
 
-  it("a deactivate/reactivate control calls PUT /admin/users/{id}/status and updates the row", async () => {
+  it("[AC-049] deactivating a doctor calls PUT /admin/doctors/{id}/status and flags their appointments for reassignment", async () => {
     stubFetch((url, init) => {
       if (url.endsWith("/admin/users") && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ users: [staffUser()] }), { status: 200 });
       }
-      if (url.endsWith("/admin/users/u-1/status") && init?.method === "PUT") {
+      if (url.endsWith("/admin/doctors/u-1/status") && init?.method === "PUT") {
         expect(JSON.parse(String(init.body))).toEqual({ is_active: false });
-        return new Response(JSON.stringify({ id: "u-1", is_active: false }), { status: 200 });
+        return new Response(
+          JSON.stringify({
+            id: "u-1",
+            is_active: false,
+            flagged_appointment_ids: ["apt-1", "apt-2"],
+          }),
+          { status: 200 },
+        );
       }
       return new Response(JSON.stringify({}), { status: 404 });
     });
@@ -169,6 +251,37 @@ describe("AdminConsole staff accounts", () => {
     await screen.findByText("a.rao@clinic.example");
     await user.click(screen.getByRole("button", { name: /Deactivate/ }));
     expect(await screen.findByRole("button", { name: /Reactivate/ })).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Dr. Anita Rao is hidden from patient search and can no longer sign in. 2 appointments are flagged for reassignment.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("[AC-049] reactivating a doctor calls PUT /admin/doctors/{id}/status with is_active true", async () => {
+    stubFetch((url, init) => {
+      if (url.endsWith("/admin/users") && (!init || init.method === undefined)) {
+        return new Response(JSON.stringify({ users: [staffUser({ is_active: false })] }), {
+          status: 200,
+        });
+      }
+      if (url.endsWith("/admin/doctors/u-1/status") && init?.method === "PUT") {
+        expect(JSON.parse(String(init.body))).toEqual({ is_active: true });
+        return new Response(
+          JSON.stringify({ id: "u-1", is_active: true, flagged_appointment_ids: [] }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    });
+    const user = userEvent.setup();
+    renderScreen();
+    await screen.findByText("a.rao@clinic.example");
+    await user.click(screen.getByRole("button", { name: /Reactivate/ }));
+    expect(await screen.findByRole("button", { name: /Deactivate/ })).toBeInTheDocument();
+    expect(
+      await screen.findByText("Dr. Anita Rao is back in patient search and can sign in again."),
+    ).toBeInTheDocument();
   });
 
   it("shows a loading state while fetching and an empty state with none provisioned", async () => {

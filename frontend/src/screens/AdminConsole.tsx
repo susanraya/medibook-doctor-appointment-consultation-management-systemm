@@ -482,10 +482,16 @@ export default function Screen() {
     email: "",
     phone: "",
     role: "doctor",
+    specialization_id: "",
   });
   const [acctErrors, setAcctErrors] = React.useState({});
   const [acctSaving, setAcctSaving] = React.useState(false);
   const [acctNotice, setAcctNotice] = React.useState(null);
+
+  const specName = (id) => {
+    const match = specs.find((s) => s.id === id);
+    return match ? match.name : id || "—";
+  };
 
   const toAccountRow = (u) => ({
     id: u.id,
@@ -496,7 +502,8 @@ export default function Screen() {
     is_active: u.is_active,
     password_status: u.password_status,
     status: u.is_active ? "active" : "deactivated",
-    specialization: "—",
+    specialization_id: u.specialization_id ?? null,
+    specialization: u.role === "doctor" ? specName(u.specialization_id) : "—",
   });
 
   React.useEffect(() => {
@@ -710,6 +717,8 @@ export default function Screen() {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(acctForm.email.trim()))
       errs.email = "that does not look like an email address.";
     if (!acctForm.phone.trim()) errs.phone = "a contact phone number is needed.";
+    if (acctForm.role === "doctor" && !acctForm.specialization_id)
+      errs.specialization_id = "a specialization is needed so they appear in patient search.";
     setAcctErrors(errs);
     if (Object.keys(errs).length) {
       setAcctNotice(null);
@@ -725,6 +734,7 @@ export default function Screen() {
           email: acctForm.email.trim(),
           phone: acctForm.phone.trim(),
           role: acctForm.role,
+          ...(acctForm.role === "doctor" ? { specialization_id: acctForm.specialization_id } : {}),
         }),
       });
       const row = { ...toAccountRow(created), fresh: true };
@@ -738,7 +748,7 @@ export default function Screen() {
           row.role +
           " account. the password is held as <set-at-first-login> until they sign in and set their own.",
       });
-      setAcctForm({ full_name: "", email: "", phone: "", role: "doctor" });
+      setAcctForm({ full_name: "", email: "", phone: "", role: "doctor", specialization_id: "" });
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setAcctErrors({ email: "that email is already in use." });
@@ -762,10 +772,16 @@ export default function Screen() {
   const toggleAccount = async (acct) => {
     const nextActive = !acct.is_active;
     try {
-      const updated = await apiFetch(`/admin/users/${acct.id}/status`, {
-        method: "PUT",
-        body: JSON.stringify({ is_active: nextActive }),
-      });
+      const updated =
+        acct.role === "doctor"
+          ? await apiFetch(`/admin/doctors/${acct.id}/status`, {
+              method: "PUT",
+              body: JSON.stringify({ is_active: nextActive }),
+            })
+          : await apiFetch(`/admin/users/${acct.id}/status`, {
+              method: "PUT",
+              body: JSON.stringify({ is_active: nextActive }),
+            });
       setAccounts((prev) =>
         prev.map((a) =>
           a.id === acct.id
@@ -777,28 +793,42 @@ export default function Screen() {
             : a,
         ),
       );
-      if (!updated.is_active) {
-        const affected = appts.filter((a) => a.doctorId === acct.id && a.status === "scheduled");
-        setAppts((prev) =>
-          prev.map((a) =>
-            a.doctorId === acct.id && a.status === "scheduled" ? { ...a, status: "reassign" } : a,
-          ),
-        );
-        pushAudit("doctor.deactivate", "user", acct.id);
+      if (acct.role === "doctor") {
+        const flagged = updated.flagged_appointment_ids || [];
+        if (!updated.is_active) {
+          setAppts((prev) =>
+            prev.map((a) =>
+              a.doctorId === acct.id && a.status === "scheduled" ? { ...a, status: "reassign" } : a,
+            ),
+          );
+          pushAudit("doctor.deactivate", "user", acct.id);
+          setAcctNotice({
+            tone: "warn",
+            text:
+              acct.full_name +
+              " is hidden from patient search and can no longer sign in. " +
+              flagged.length +
+              (flagged.length === 1 ? " appointment is" : " appointments are") +
+              " flagged for reassignment.",
+          });
+        } else {
+          pushAudit("doctor.reactivate", "user", acct.id);
+          setAcctNotice({
+            tone: "good",
+            text: acct.full_name + " is back in patient search and can sign in again.",
+          });
+        }
+      } else if (!updated.is_active) {
+        pushAudit("admin.deactivate", "user", acct.id);
         setAcctNotice({
           tone: "warn",
-          text:
-            acct.full_name +
-            " is hidden from patient search and can no longer sign in. " +
-            affected.length +
-            (affected.length === 1 ? " appointment is" : " appointments are") +
-            " flagged for reassignment.",
+          text: acct.full_name + " is deactivated and can no longer sign in.",
         });
       } else {
-        pushAudit("doctor.reactivate", "user", acct.id);
+        pushAudit("admin.reactivate", "user", acct.id);
         setAcctNotice({
           tone: "good",
-          text: acct.full_name + " is back in patient search and can sign in again.",
+          text: acct.full_name + " can sign in again.",
         });
       }
     } catch {
@@ -878,6 +908,9 @@ export default function Screen() {
                     <TH data-wf="i-2-0-2" scope="col" className={thCls} style={{ color: muted }}>
                       Role
                     </TH>
+                    <TH data-wf="i-2-0-2b" scope="col" className={thCls} style={{ color: muted }}>
+                      Specialization
+                    </TH>
                     <TH data-wf="i-2-0-3" scope="col" className={thCls} style={{ color: muted }}>
                       Password
                     </TH>
@@ -919,6 +952,9 @@ export default function Screen() {
                         >
                           {a.role}
                         </span>
+                      </TD>
+                      <TD className={tdCls} style={{ color: muted }}>
+                        {a.specialization}
                       </TD>
                       <TD
                         className={tdCls}
@@ -1075,7 +1111,14 @@ export default function Screen() {
                   data-wf="i-2-1-3"
                   id="acct-role"
                   value={acctForm.role}
-                  onChange={(e) => setAcctForm({ ...acctForm, role: e.target.value })}
+                  onChange={(e) =>
+                    setAcctForm({
+                      ...acctForm,
+                      role: e.target.value,
+                      specialization_id:
+                        e.target.value === "doctor" ? acctForm.specialization_id : "",
+                    })
+                  }
                   className={inputCls}
                   style={inputStyle}
                 >
@@ -1083,6 +1126,48 @@ export default function Screen() {
                   <option value="admin">Admin</option>
                 </Select>
               </div>
+
+              {acctForm.role === "doctor" ? (
+                <div>
+                  <Label
+                    htmlFor="acct-specialization"
+                    className="mb-2 block text-[13px] font-medium"
+                    style={{ color: ink }}
+                  >
+                    Specialization
+                  </Label>
+                  <Select
+                    data-wf="i-2-1-3b"
+                    id="acct-specialization"
+                    value={acctForm.specialization_id}
+                    onChange={(e) =>
+                      setAcctForm({ ...acctForm, specialization_id: e.target.value })
+                    }
+                    className={inputCls}
+                    style={inputStyle}
+                    aria-invalid={acctErrors.specialization_id ? "true" : undefined}
+                    aria-describedby={
+                      acctErrors.specialization_id ? "acct-specialization-err" : undefined
+                    }
+                  >
+                    <option value="">Choose a specialization…</option>
+                    {activeSpecs.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </Select>
+                  {acctErrors.specialization_id ? (
+                    <p
+                      id="acct-specialization-err"
+                      className="mt-2 text-xs"
+                      style={{ color: clay }}
+                    >
+                      {acctErrors.specialization_id}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
 
               <p className="text-xs leading-relaxed" style={{ color: muted }}>
                 no credential is collected here — the account holder sets their own password the
