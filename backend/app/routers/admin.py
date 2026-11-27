@@ -13,6 +13,8 @@ from app.database import get_db
 from app.deps import require_role
 from app.errors import (
     EMAIL_ALREADY_IN_USE,
+    MAPPING_NOT_FOUND,
+    MAPPING_TERM_TAKEN,
     SPECIALIZATION_IN_USE,
     SPECIALIZATION_NAME_TAKEN,
     SPECIALIZATION_NOT_FOUND,
@@ -22,6 +24,11 @@ from app.schemas import (
     AdminCreateUserRequest,
     AdminUserListOut,
     AdminUserOut,
+    DiseaseMappingCreateRequest,
+    DiseaseMappingDeleteOut,
+    DiseaseMappingListOut,
+    DiseaseMappingOut,
+    DiseaseMappingUpdateRequest,
     SpecializationCreateRequest,
     SpecializationDeleteOut,
     SpecializationListOut,
@@ -195,24 +202,75 @@ async def delete_specialization(
     return SpecializationDeleteOut(id=id, deleted=True)
 
 
-@router.get("/mappings", response_model=StubResponse)
-async def list_mappings() -> StubResponse:
-    return StubResponse(endpoint="GET /admin/mappings")
+@router.get("/mappings", response_model=DiseaseMappingListOut)
+async def list_mappings(
+    db: DBSession = _db, _admin: User = _require_admin
+) -> DiseaseMappingListOut:
+    mappings = services.list_mappings(db)
+    return DiseaseMappingListOut(
+        mappings=[
+            DiseaseMappingOut(id=mapping.id, term=mapping.term, specialization_ids=ids)
+            for mapping, ids in mappings
+        ]
+    )
 
 
-@router.post("/mappings", response_model=StubResponse)
-async def create_mapping() -> StubResponse:
-    return StubResponse(endpoint="POST /admin/mappings")
+@router.post(
+    "/mappings",
+    response_model=DiseaseMappingOut,
+    status_code=201,
+    responses={
+        SPECIALIZATION_NOT_FOUND["status_code"]: {
+            "description": SPECIALIZATION_NOT_FOUND["detail"]
+        },
+        MAPPING_TERM_TAKEN["status_code"]: {"description": MAPPING_TERM_TAKEN["detail"]},
+    },
+)
+async def create_mapping(
+    payload: DiseaseMappingCreateRequest, db: DBSession = _db, _admin: User = _require_admin
+) -> DiseaseMappingOut:
+    mapping, specialization_ids = services.create_mapping(
+        db, payload.term, payload.specialization_ids
+    )
+    return DiseaseMappingOut(
+        id=mapping.id, term=mapping.term, specialization_ids=specialization_ids
+    )
 
 
-@router.put("/mappings", response_model=StubResponse)
-async def update_mapping() -> StubResponse:
-    return StubResponse(endpoint="PUT /admin/mappings")
+@router.put(
+    "/mappings",
+    response_model=DiseaseMappingOut,
+    responses={
+        MAPPING_NOT_FOUND["status_code"]: {"description": MAPPING_NOT_FOUND["detail"]},
+        SPECIALIZATION_NOT_FOUND["status_code"]: {
+            "description": SPECIALIZATION_NOT_FOUND["detail"]
+        },
+        MAPPING_TERM_TAKEN["status_code"]: {"description": MAPPING_TERM_TAKEN["detail"]},
+    },
+)
+async def update_mapping(
+    payload: DiseaseMappingUpdateRequest, db: DBSession = _db, _admin: User = _require_admin
+) -> DiseaseMappingOut:
+    mapping, specialization_ids = services.update_mapping(
+        db, payload.id, payload.term, payload.specialization_ids
+    )
+    return DiseaseMappingOut(
+        id=mapping.id, term=mapping.term, specialization_ids=specialization_ids
+    )
 
 
-@router.delete("/mappings", response_model=StubResponse)
-async def delete_mapping() -> StubResponse:
-    return StubResponse(endpoint="DELETE /admin/mappings")
+@router.delete(
+    "/mappings",
+    response_model=DiseaseMappingDeleteOut,
+    responses={
+        MAPPING_NOT_FOUND["status_code"]: {"description": MAPPING_NOT_FOUND["detail"]},
+    },
+)
+async def delete_mapping(
+    id: str, db: DBSession = _db, _admin: User = _require_admin
+) -> DiseaseMappingDeleteOut:
+    services.delete_mapping(db, id)
+    return DiseaseMappingDeleteOut(id=id, deleted=True)
 
 
 @router.get("/audit-logs", response_model=StubResponse)

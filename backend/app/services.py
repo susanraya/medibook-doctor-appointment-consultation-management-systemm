@@ -14,6 +14,8 @@ from sqlalchemy.orm import Session as DBSession
 from app.errors import (
     CONSENT_REQUIRED,
     EMAIL_ALREADY_IN_USE,
+    MAPPING_NOT_FOUND,
+    MAPPING_TERM_TAKEN,
     SPECIALIZATION_IN_USE,
     SPECIALIZATION_NAME_TAKEN,
     SPECIALIZATION_NOT_FOUND,
@@ -22,6 +24,7 @@ from app.models import (
     STAFF_PASSWORD_PLACEHOLDER,
     Appointment,
     AuditLog,
+    DiseaseMapping,
     DiseaseMappingSpecialization,
     DoctorProfile,
     PatientConsent,
@@ -203,6 +206,131 @@ def delete_specialization(db: DBSession, specialization_id: str) -> None:
         )
 
     db.delete(specialization)
+    db.commit()
+
+
+def _mapping_specialization_ids(db: DBSession, mapping_ids: list[str]) -> dict[str, list[str]]:
+    """Each mapping's specialization ids, keyed by `mapping_id`, for the given
+    `mapping_ids` that have a `disease_mapping_specializations` row."""
+    if not mapping_ids:
+        return {}
+    links = (
+        db.query(DiseaseMappingSpecialization)
+        .filter(DiseaseMappingSpecialization.mapping_id.in_(mapping_ids))
+        .all()
+    )
+    result: dict[str, list[str]] = {}
+    for link in links:
+        result.setdefault(link.mapping_id, []).append(link.specialization_id)
+    return result
+
+
+def _assert_specializations_exist(db: DBSession, specialization_ids: list[str]) -> None:
+    found_ids = {
+        row[0]
+        for row in db.query(Specialization.id)
+        .filter(Specialization.id.in_(specialization_ids))
+        .all()
+    }
+    if set(specialization_ids) - found_ids:
+        raise HTTPException(
+            status_code=SPECIALIZATION_NOT_FOUND["status_code"],
+            detail=SPECIALIZATION_NOT_FOUND["detail"],
+        )
+
+
+def list_mappings(db: DBSession) -> list[tuple[DiseaseMapping, list[str]]]:
+    """Every disease/symptom-to-specialization mapping entry, each paired with
+    the specialization ids it currently resolves to, reflecting every add,
+    edit and removal as soon as it commits so patient search can use it
+    immediately (AC-052)."""
+    mappings = db.query(DiseaseMapping).order_by(DiseaseMapping.term).all()
+    ids_by_mapping = _mapping_specialization_ids(db, [m.id for m in mappings])
+    return [(mapping, ids_by_mapping.get(mapping.id, [])) for mapping in mappings]
+
+
+def create_mapping(
+    db: DBSession, term: str, specialization_ids: list[str]
+) -> tuple[DiseaseMapping, list[str]]:
+    """Add a mapping linking a disease or symptom term to one or more
+    specializations (AC-052). Raises MAPPING_TERM_TAKEN when another mapping
+    already covers that exact term, and SPECIALIZATION_NOT_FOUND when a
+    specialization id does not match an existing specialization -- rejecting
+    the entry until a valid specialization is chosen (AC-053).
+    """
+    existing = db.query(DiseaseMapping).filter(DiseaseMapping.term == term).first()
+    if existing is not None:
+        raise HTTPException(
+            status_code=MAPPING_TERM_TAKEN["status_code"], detail=MAPPING_TERM_TAKEN["detail"]
+        )
+    _assert_specializations_exist(db, specialization_ids)
+
+    mapping = DiseaseMapping(term=term)
+    db.add(mapping)
+    db.commit()
+    db.refresh(mapping)
+    for specialization_id in specialization_ids:
+        db.add(
+            DiseaseMappingSpecialization(mapping_id=mapping.id, specialization_id=specialization_id)
+        )
+    db.commit()
+    return mapping, list(specialization_ids)
+
+
+def update_mapping(
+    db: DBSession, mapping_id: str, term: str, specialization_ids: list[str]
+) -> tuple[DiseaseMapping, list[str]]:
+    """Replace an existing mapping entry's term and specialization list
+    (AC-052), used by patient search as soon as this commits. Raises
+    MAPPING_NOT_FOUND when `mapping_id` does not match one, MAPPING_TERM_TAKEN
+    when another mapping already covers the new term, and
+    SPECIALIZATION_NOT_FOUND when a specialization id does not match an
+    existing specialization -- rejecting the entry until a valid
+    specialization is chosen (AC-053).
+    """
+    mapping = db.query(DiseaseMapping).filter(DiseaseMapping.id == mapping_id).first()
+    if mapping is None:
+        raise HTTPException(
+            status_code=MAPPING_NOT_FOUND["status_code"], detail=MAPPING_NOT_FOUND["detail"]
+        )
+
+    existing = (
+        db.query(DiseaseMapping)
+        .filter(DiseaseMapping.term == term, DiseaseMapping.id != mapping_id)
+        .first()
+    )
+    if existing is not None:
+        raise HTTPException(
+            status_code=MAPPING_TERM_TAKEN["status_code"], detail=MAPPING_TERM_TAKEN["detail"]
+        )
+
+    _assert_specializations_exist(db, specialization_ids)
+
+    mapping.term = term
+    db.query(DiseaseMappingSpecialization).filter(
+        DiseaseMappingSpecialization.mapping_id == mapping_id
+    ).delete()
+    for specialization_id in specialization_ids:
+        db.add(
+            DiseaseMappingSpecialization(mapping_id=mapping_id, specialization_id=specialization_id)
+        )
+    db.commit()
+    db.refresh(mapping)
+    return mapping, list(specialization_ids)
+
+
+def delete_mapping(db: DBSession, mapping_id: str) -> None:
+    """Remove a mapping entry (AC-052). Raises MAPPING_NOT_FOUND when
+    `mapping_id` does not match one."""
+    mapping = db.query(DiseaseMapping).filter(DiseaseMapping.id == mapping_id).first()
+    if mapping is None:
+        raise HTTPException(
+            status_code=MAPPING_NOT_FOUND["status_code"], detail=MAPPING_NOT_FOUND["detail"]
+        )
+    db.query(DiseaseMappingSpecialization).filter(
+        DiseaseMappingSpecialization.mapping_id == mapping_id
+    ).delete()
+    db.delete(mapping)
     db.commit()
 
 

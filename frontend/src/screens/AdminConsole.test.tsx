@@ -515,3 +515,255 @@ describe("AdminConsole specializations", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+async function openMappingsTab(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("tab", { name: "Disease mappings" }));
+}
+
+function mappingsResponse(mappings: Array<Record<string, unknown>> = []) {
+  return new Response(JSON.stringify({ mappings }), { status: 200 });
+}
+
+describe("AdminConsole mappings", () => {
+  it("[AC-052] shows a loading state while fetching and an empty state with none defined", async () => {
+    let resolveMappings: (value: Response) => void = () => {};
+    stubFetch((url) => {
+      if (url.endsWith("/admin/mappings")) {
+        return new Promise<Response>((resolve) => {
+          resolveMappings = resolve;
+        });
+      }
+      if (url.endsWith("/admin/specializations")) {
+        return specsResponse();
+      }
+      return new Response(JSON.stringify({ users: [] }), { status: 200 });
+    });
+    const user = userEvent.setup();
+    renderScreen();
+    await openMappingsTab(user);
+    expect(screen.getByText("loading mappings…")).toBeInTheDocument();
+    resolveMappings(mappingsResponse());
+    expect(await screen.findByText("no mappings yet")).toBeInTheDocument();
+  });
+
+  it("[AC-052] a 403 fetching mappings renders 'not available for your role'", async () => {
+    stubFetch((url) => {
+      if (url.endsWith("/admin/mappings")) {
+        return new Response(JSON.stringify({ detail: "Forbidden" }), { status: 403 });
+      }
+      if (url.endsWith("/admin/specializations")) {
+        return specsResponse();
+      }
+      return new Response(JSON.stringify({ users: [] }), { status: 200 });
+    });
+    const user = userEvent.setup();
+    renderScreen();
+    await openMappingsTab(user);
+    expect(await screen.findByText("not available for your role")).toBeInTheDocument();
+  });
+
+  it("[AC-052] lists mapping entries from GET /admin/mappings with their specialization names", async () => {
+    stubFetch((url) => {
+      if (url.endsWith("/admin/mappings")) {
+        return mappingsResponse([
+          { id: "MAP-001", term: "chest pain", specialization_ids: ["SPC-001"] },
+        ]);
+      }
+      if (url.endsWith("/admin/specializations")) {
+        return specsResponse();
+      }
+      return new Response(JSON.stringify({ users: [] }), { status: 200 });
+    });
+    const user = userEvent.setup();
+    renderScreen();
+    await openMappingsTab(user);
+    expect(
+      await screen.findByText("chest pain", { selector: "span.font-medium" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Cardiology", { selector: "li" })).toBeInTheDocument();
+  });
+
+  it("[AC-052] adding a mapping posts the term and specialization ids and the new entry is used immediately by patient search", async () => {
+    stubFetch((url, init) => {
+      if (url.endsWith("/admin/mappings") && init?.method === "POST") {
+        expect(JSON.parse(String(init.body))).toEqual({
+          term: "eczema",
+          specialization_ids: ["SPC-002"],
+        });
+        return new Response(
+          JSON.stringify({ id: "MAP-002", term: "eczema", specialization_ids: ["SPC-002"] }),
+          { status: 201 },
+        );
+      }
+      if (url.endsWith("/admin/mappings")) {
+        return mappingsResponse();
+      }
+      if (url.endsWith("/admin/specializations")) {
+        return specsResponse();
+      }
+      return new Response(JSON.stringify({ users: [] }), { status: 200 });
+    });
+    const user = userEvent.setup();
+    renderScreen();
+    await openMappingsTab(user);
+    await screen.findByText("no mappings yet");
+    await user.type(screen.getByLabelText("Disease or symptom term"), "eczema");
+    await user.click(screen.getByRole("checkbox", { name: "Dermatology" }));
+    await user.click(screen.getByRole("button", { name: "Add mapping entry" }));
+    expect(
+      await screen.findByText(
+        "“eczema” now resolves to Dermatology. patient search uses it from the next lookup.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("eczema", { selector: "span.font-medium" })).toBeInTheDocument();
+  });
+
+  it("[AC-052] choosing no specialization is rejected before any request is sent", async () => {
+    stubFetch((url) => {
+      if (url.endsWith("/admin/mappings")) {
+        return mappingsResponse();
+      }
+      if (url.endsWith("/admin/specializations")) {
+        return specsResponse();
+      }
+      return new Response(JSON.stringify({ users: [] }), { status: 200 });
+    });
+    const user = userEvent.setup();
+    renderScreen();
+    await openMappingsTab(user);
+    await screen.findByText("no mappings yet");
+    await user.type(screen.getByLabelText("Disease or symptom term"), "gout");
+    await user.click(screen.getByRole("button", { name: "Add mapping entry" }));
+    expect(await screen.findByText("choose at least one specialization.")).toBeInTheDocument();
+    expect(screen.queryByText("gout", { selector: "span.font-medium" })).not.toBeInTheDocument();
+  });
+
+  it("[AC-053] saving a mapping to a specialization that does not exist is rejected until a valid one is chosen", async () => {
+    stubFetch((url, init) => {
+      if (url.endsWith("/admin/mappings") && init?.method === "POST") {
+        return new Response(JSON.stringify({ detail: "Specialization not found" }), {
+          status: 404,
+        });
+      }
+      if (url.endsWith("/admin/mappings")) {
+        return mappingsResponse();
+      }
+      if (url.endsWith("/admin/specializations")) {
+        return specsResponse();
+      }
+      return new Response(JSON.stringify({ users: [] }), { status: 200 });
+    });
+    const user = userEvent.setup();
+    renderScreen();
+    await openMappingsTab(user);
+    await screen.findByText("no mappings yet");
+    await user.type(screen.getByLabelText("Disease or symptom term"), "gout");
+    await user.click(screen.getByRole("checkbox", { name: "Cardiology" }));
+    await user.click(screen.getByRole("button", { name: "Add mapping entry" }));
+    expect(await screen.findByText("Specialization not found")).toBeInTheDocument();
+    expect(screen.queryByText("gout", { selector: "span.font-medium" })).not.toBeInTheDocument();
+  });
+
+  it("[AC-052] editing a mapping's term and specializations saves through PUT and the row updates", async () => {
+    stubFetch((url, init) => {
+      if (url.endsWith("/admin/mappings") && init?.method === "PUT") {
+        expect(JSON.parse(String(init.body))).toEqual({
+          id: "MAP-001",
+          term: "chest tightness",
+          specialization_ids: ["SPC-001", "SPC-002"],
+        });
+        return new Response(
+          JSON.stringify({
+            id: "MAP-001",
+            term: "chest tightness",
+            specialization_ids: ["SPC-001", "SPC-002"],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/admin/mappings")) {
+        return mappingsResponse([
+          { id: "MAP-001", term: "chest pain", specialization_ids: ["SPC-001"] },
+        ]);
+      }
+      if (url.endsWith("/admin/specializations")) {
+        return specsResponse();
+      }
+      return new Response(JSON.stringify({ users: [] }), { status: 200 });
+    });
+    const user = userEvent.setup();
+    renderScreen();
+    await openMappingsTab(user);
+    await screen.findByText("chest pain", { selector: "span.font-medium" });
+    await user.click(screen.getByRole("button", { name: "Edit chest pain" }));
+    const input = screen.getByDisplayValue("chest pain");
+    await user.clear(input);
+    await user.type(input, "chest tightness");
+    const dermatologyCheckboxes = screen.getAllByRole("checkbox", { name: "Dermatology" });
+    await user.click(dermatologyCheckboxes[0]);
+    await user.click(screen.getByRole("button", { name: "Save chest pain" }));
+    expect(
+      await screen.findByText("chest tightness", { selector: "span.font-medium" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("chest pain", { selector: "span.font-medium" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("[AC-053] editing a mapping to a specialization that does not exist is rejected inline and the row keeps its old values", async () => {
+    stubFetch((url, init) => {
+      if (url.endsWith("/admin/mappings") && init?.method === "PUT") {
+        return new Response(JSON.stringify({ detail: "Specialization not found" }), {
+          status: 404,
+        });
+      }
+      if (url.endsWith("/admin/mappings")) {
+        return mappingsResponse([
+          { id: "MAP-001", term: "chest pain", specialization_ids: ["SPC-001"] },
+        ]);
+      }
+      if (url.endsWith("/admin/specializations")) {
+        return specsResponse();
+      }
+      return new Response(JSON.stringify({ users: [] }), { status: 200 });
+    });
+    const user = userEvent.setup();
+    renderScreen();
+    await openMappingsTab(user);
+    await screen.findByText("chest pain", { selector: "span.font-medium" });
+    await user.click(screen.getByRole("button", { name: "Edit chest pain" }));
+    await user.click(screen.getByRole("button", { name: "Save chest pain" }));
+    expect(await screen.findByText("Specialization not found")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("chest pain")).toBeInTheDocument();
+  });
+
+  it("[AC-052] removing a mapping calls DELETE and the row disappears", async () => {
+    stubFetch((url, init) => {
+      if (url.endsWith("/admin/mappings?id=MAP-001") && init?.method === "DELETE") {
+        return new Response(null, { status: 204 });
+      }
+      if (url.endsWith("/admin/mappings")) {
+        return mappingsResponse([
+          { id: "MAP-001", term: "chest pain", specialization_ids: ["SPC-001"] },
+        ]);
+      }
+      if (url.endsWith("/admin/specializations")) {
+        return specsResponse();
+      }
+      return new Response(JSON.stringify({ users: [] }), { status: 200 });
+    });
+    const user = userEvent.setup();
+    renderScreen();
+    await openMappingsTab(user);
+    await screen.findByText("chest pain", { selector: "span.font-medium" });
+    await user.click(screen.getByRole("button", { name: "Remove chest pain" }));
+    expect(
+      await screen.findByText(
+        "“chest pain” removed. patient search no longer resolves it to a specialization.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("chest pain", { selector: "span.font-medium" }),
+    ).not.toBeInTheDocument();
+  });
+});

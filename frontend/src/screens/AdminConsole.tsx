@@ -8,7 +8,8 @@ import { brand } from "@/lib/brand";
 import { useNavigate } from "@/lib/navigate";
 import { ApiError, apiFetch } from "@/lib/api";
 
-const { Button, Input, Label, Select, Table, THead, TBody, TR, TH, TD, Avatar, Empty } = UI;
+const { Button, Input, Label, Select, Checkbox, Table, THead, TBody, TR, TH, TD, Avatar, Empty } =
+  UI;
 
 const { User, Home, ArrowLeft, ArrowRight } = Icons;
 
@@ -23,57 +24,9 @@ const TAB_DEFS = [
   { key: "email", label: "Email & logs", wf: "i-1-0-5" },
 ];
 
-const MAPPING_BACKLOG = [
-  { term: "ringing in the ears", specs: ["ENT (Otolaryngology)"] },
-  { term: "palpitations", specs: ["Cardiology", "General Medicine"] },
-  { term: "persistent cough", specs: ["Pulmonology", "General Medicine"] },
-];
-
 // Doctor and admin accounts come from the server (GET /admin/users); no sample
-// staff rows are seeded here any more (US-003-2).
-
-const MAPPINGS_SEED = [
-  {
-    id: "MAP-014",
-    term: "chest pain",
-    specs: ["Cardiology", "General Medicine"],
-    updated: "14 Nov 2026",
-  },
-  {
-    id: "MAP-013",
-    term: "shortness of breath",
-    specs: ["Pulmonology", "Cardiology"],
-    updated: "12 Nov 2026",
-  },
-  {
-    id: "MAP-011",
-    term: "migraine",
-    specs: ["Neurology", "General Medicine"],
-    updated: "09 Nov 2026",
-  },
-  { id: "MAP-010", term: "eczema", specs: ["Dermatology"], updated: "09 Nov 2026" },
-  {
-    id: "MAP-009",
-    term: "type 2 diabetes",
-    specs: ["Endocrinology", "General Medicine"],
-    updated: "06 Nov 2026",
-  },
-  {
-    id: "MAP-008",
-    term: "persistent sore throat",
-    specs: ["ENT (Otolaryngology)"],
-    updated: "04 Nov 2026",
-  },
-  { id: "MAP-007", term: "acid reflux", specs: ["Gastroenterology"], updated: "02 Nov 2026" },
-  { id: "MAP-006", term: "knee injury", specs: ["Orthopaedics"], updated: "28 Oct 2026" },
-  { id: "MAP-004", term: "childhood fever", specs: ["Paediatrics"], updated: "26 Oct 2026" },
-  {
-    id: "MAP-002",
-    term: "low mood",
-    specs: ["Psychiatry", "General Medicine"],
-    updated: "21 Oct 2026",
-  },
-];
+// staff rows are seeded here any more (US-003-2). The disease/symptom mapping
+// table (US-022) is likewise owned by the server, not seeded here.
 
 const APPTS_SEED = [
   {
@@ -541,9 +494,46 @@ export default function Screen() {
     };
   }, []);
 
-  const [mappings, setMappings] = React.useState(MAPPINGS_SEED);
-  const [mapQueue, setMapQueue] = React.useState(MAPPING_BACKLOG);
+  const [mappings, setMappings] = React.useState([]);
+  const [mappingsLoading, setMappingsLoading] = React.useState(true);
+  const [mappingsError, setMappingsError] = React.useState(null); // "forbidden" | "error" | null
+  const [mapForm, setMapForm] = React.useState({ term: "", specialization_ids: [] });
+  const [mapFormErrors, setMapFormErrors] = React.useState({});
+  const [mapSaving, setMapSaving] = React.useState(false);
   const [mapNotice, setMapNotice] = React.useState(null);
+  const [editingMapId, setEditingMapId] = React.useState(null);
+  const [editingMap, setEditingMap] = React.useState({ term: "", specialization_ids: [] });
+  const [editMapErrors, setEditMapErrors] = React.useState({});
+  const [mapRowBusyId, setMapRowBusyId] = React.useState(null);
+  const [mappingsLoaded, setMappingsLoaded] = React.useState(false);
+
+  // Fetched lazily, the first time the Disease mappings tab is opened, rather
+  // than at mount alongside accounts and specializations: those two feed the
+  // other tabs too, but nothing needs the mapping table before an admin asks
+  // for it.
+  React.useEffect(() => {
+    if (tab !== "mappings" || mappingsLoaded) return undefined;
+    let cancelled = false;
+    (async () => {
+      setMappingsLoading(true);
+      setMappingsError(null);
+      try {
+        const res = await apiFetch("/admin/mappings");
+        if (!cancelled) {
+          setMappings(res.mappings ?? []);
+          setMappingsLoaded(true);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setMappingsError(err instanceof ApiError && err.status === 403 ? "forbidden" : "error");
+      } finally {
+        if (!cancelled) setMappingsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, mappingsLoaded]);
 
   const [appts, setAppts] = React.useState(APPTS_SEED);
   const [usedSlots, setUsedSlots] = React.useState([]);
@@ -1626,154 +1616,481 @@ export default function Screen() {
 
   /* ---------------- mappings ---------------- */
 
-  const addMapping = () => {
-    if (!mapQueue.length) return;
-    const next = mapQueue[0];
-    if (mappings.some((m) => m.term.toLowerCase() === next.term.toLowerCase())) {
-      setMapQueue((q) => q.slice(1));
-      setMapNotice({
-        tone: "warn",
-        text:
-          "“" +
-          next.term +
-          "” is already mapped, so nothing was added. it has been taken off the waiting list.",
-      });
+  const submitMapping = async (e) => {
+    e.preventDefault();
+    const term = mapForm.term.trim();
+    const errs = {};
+    if (!term) errs.term = "a disease or symptom term is needed.";
+    if (!mapForm.specialization_ids.length)
+      errs.specialization_ids = "choose at least one specialization.";
+    setMapFormErrors(errs);
+    if (Object.keys(errs).length) {
+      setMapNotice(null);
       return;
     }
-    const known = next.specs.filter((n) => specs.some((s) => s.name === n && s.is_active));
-    if (!known.length) {
+    setMapSaving(true);
+    setMapNotice(null);
+    try {
+      const created = await apiFetch("/admin/mappings", {
+        method: "POST",
+        body: JSON.stringify({ term, specialization_ids: mapForm.specialization_ids }),
+      });
+      setMappings((prev) => [{ ...created, fresh: true }, ...prev]);
+      pushAudit("mapping.create", "disease_mapping", created.id);
+      setMapForm({ term: "", specialization_ids: [] });
       setMapNotice({
-        tone: "warn",
+        tone: "good",
         text:
           "“" +
-          next.term +
-          "” cannot be saved yet — " +
-          next.specs.join(" and ") +
-          " is not on the specialization list. add it under Specializations first, then this entry will go through.",
+          created.term +
+          "” now resolves to " +
+          created.specialization_ids.map(specName).join(" and ") +
+          ". patient search uses it from the next lookup.",
       });
-      return;
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setMapFormErrors({
+          term:
+            typeof err.detail === "string"
+              ? err.detail
+              : "a mapping entry for that disease or symptom already exists.",
+        });
+      } else if (err instanceof ApiError && err.status === 404) {
+        setMapFormErrors({
+          specialization_ids:
+            typeof err.detail === "string" ? err.detail : "choose a specialization that exists.",
+        });
+      } else {
+        setMapNotice({
+          tone: "warn",
+          text: "something went wrong adding that mapping entry — please try again.",
+        });
+      }
+    } finally {
+      setMapSaving(false);
     }
-    const id = "MAP-0" + (15 + mappings.length);
-    setMappings((prev) => [
-      { id, term: next.term, specs: known, updated: "16 Nov 2026", fresh: true },
-      ...prev,
-    ]);
-    setSpecs((prev) =>
-      prev.map((s) => (known.includes(s.name) ? { ...s, mappings: s.mappings + 1 } : s)),
-    );
-    pushAudit("mapping.create", "disease_mapping", id);
-    setMapQueue((q) => q.slice(1));
-    setMapNotice({
-      tone: "good",
-      text:
-        "“" +
-        next.term +
-        "” now resolves to " +
-        known.join(" and ") +
-        " — one of the unmapped searches the clinical lead has reviewed. patient search uses it from the next lookup, by static table only.",
-    });
+  };
+
+  const startEditMapping = (m) => {
+    setMapNotice(null);
+    setEditingMapId(m.id);
+    setEditingMap({ term: m.term, specialization_ids: [...m.specialization_ids] });
+    setEditMapErrors({});
+  };
+
+  const cancelEditMapping = () => {
+    setEditingMapId(null);
+    setEditingMap({ term: "", specialization_ids: [] });
+    setEditMapErrors({});
+  };
+
+  const saveEditMapping = async (m) => {
+    const term = editingMap.term.trim();
+    const errs = {};
+    if (!term) errs.term = "a disease or symptom term is needed.";
+    if (!editingMap.specialization_ids.length)
+      errs.specialization_ids = "choose at least one specialization.";
+    setEditMapErrors(errs);
+    if (Object.keys(errs).length) return;
+    setMapRowBusyId(m.id);
+    try {
+      const updated = await apiFetch("/admin/mappings", {
+        method: "PUT",
+        body: JSON.stringify({
+          id: m.id,
+          term,
+          specialization_ids: editingMap.specialization_ids,
+        }),
+      });
+      setMappings((prev) => prev.map((x) => (x.id === m.id ? { ...x, ...updated } : x)));
+      pushAudit("mapping.update", "disease_mapping", m.id);
+      setEditingMapId(null);
+      setEditingMap({ term: "", specialization_ids: [] });
+      setEditMapErrors({});
+      setMapNotice({
+        tone: "good",
+        text:
+          "“" +
+          updated.term +
+          "” now resolves to " +
+          updated.specialization_ids.map(specName).join(" and ") +
+          ". patient search uses it immediately.",
+      });
+    } catch (err) {
+      if (
+        err instanceof ApiError &&
+        err.status === 404 &&
+        err.detail === "Mapping entry not found"
+      ) {
+        setEditMapErrors({ term: "that mapping entry no longer exists." });
+      } else if (err instanceof ApiError && err.status === 404) {
+        setEditMapErrors({
+          specialization_ids:
+            typeof err.detail === "string" ? err.detail : "choose a specialization that exists.",
+        });
+      } else if (err instanceof ApiError && err.status === 409) {
+        setEditMapErrors({
+          term:
+            typeof err.detail === "string"
+              ? err.detail
+              : "a mapping entry for that disease or symptom already exists.",
+        });
+      } else {
+        setEditMapErrors({ term: "something went wrong saving that mapping — please try again." });
+      }
+    } finally {
+      setMapRowBusyId(null);
+    }
+  };
+
+  const removeMapping = async (m) => {
+    setMapNotice(null);
+    setMapRowBusyId(m.id);
+    try {
+      await apiFetch(`/admin/mappings?id=${encodeURIComponent(m.id)}`, { method: "DELETE" });
+      setMappings((prev) => prev.filter((x) => x.id !== m.id));
+      pushAudit("mapping.delete", "disease_mapping", m.id);
+      setMapNotice({
+        tone: "good",
+        text: "“" + m.term + "” removed. patient search no longer resolves it to a specialization.",
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setMappings((prev) => prev.filter((x) => x.id !== m.id));
+      } else {
+        setMapNotice({
+          tone: "warn",
+          text: "could not remove “" + m.term + "” — please try again.",
+        });
+      }
+    } finally {
+      setMapRowBusyId(null);
+    }
   };
 
   const renderMappings = () => (
     <div className="space-y-8">
       {mapNotice ? noticeBar(mapNotice.tone, mapNotice.text, () => setMapNotice(null)) : null}
 
-      <section data-wf="b-4-1" style={panelStyle} aria-labelledby="map-h">
-        {sectionHead(
-          "Disease / symptom mappings",
-          mappings.length + " entries · resolved by static lookup, never by a model",
-          <span
-            className="rounded-full px-4 py-2 text-xs"
-            style={{ backgroundColor: alpha(brass, 0.16), color: accentText }}
-          >
-            owned by admin
-          </span>,
-        )}
-        <div className="overflow-x-auto px-2 pb-6">
-          <Table style={tableStyle}>
-            <THead>
-              <TR style={{ borderBottom: `1px solid ${hair}` }}>
-                <TH data-wf="i-4-1-0" scope="col" className={thCls} style={{ color: muted }}>
-                  Term
-                </TH>
-                <TH data-wf="i-4-1-1" scope="col" className={thCls} style={{ color: muted }}>
-                  Mapped specializations
-                </TH>
-                <TH data-wf="i-4-1-2" scope="col" className={thCls} style={{ color: muted }}>
-                  Updated
-                </TH>
-              </TR>
-            </THead>
-            <TBody>
-              {mappings.map((m) => (
-                <TR
-                  key={m.id}
-                  className={m.fresh ? "atrium-rise" : ""}
-                  style={{ borderBottom: `1px solid ${hair}` }}
-                >
-                  <TD className={tdCls}>
-                    <span className="font-medium" style={{ color: ink }}>
-                      {m.term}
-                    </span>
-                    <span className="ml-2 text-xs" style={{ color: muted }}>
-                      {m.id}
-                    </span>
-                  </TD>
-                  <TD className={tdCls}>
-                    <ul className="flex flex-wrap gap-2">
-                      {m.specs.map((s) => (
-                        <li
-                          key={s}
-                          className="rounded-full px-3 py-1 text-xs"
-                          style={{ backgroundColor: inset, color: ink }}
-                        >
-                          {s}
-                        </li>
-                      ))}
-                    </ul>
-                  </TD>
-                  <TD className={tdCls} style={{ color: muted }}>
-                    {m.updated}
-                  </TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
-        </div>
-      </section>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+        <section
+          data-wf="b-4-1"
+          className="lg:col-span-7"
+          style={panelStyle}
+          aria-labelledby="map-h"
+        >
+          {sectionHead(
+            "Disease / symptom mappings",
+            mappingsLoading
+              ? "loading…"
+              : mappingsError
+                ? ""
+                : mappings.length + " entries · resolved by static lookup, never by a model",
+          )}
+          {mappingsError === "forbidden" ? (
+            <div className="px-6 pb-6">
+              <Empty
+                title="not available for your role"
+                description="this section is for clinic administrators only."
+              />
+            </div>
+          ) : mappingsError ? (
+            <div className="px-6 pb-6">
+              <Empty title="could not load mappings" description="please try again in a moment." />
+            </div>
+          ) : mappingsLoading ? (
+            <div className="px-6 pb-6 text-sm" style={{ color: muted }} role="status">
+              loading mappings…
+            </div>
+          ) : mappings.length === 0 ? (
+            <div className="px-6 pb-6">
+              <Empty
+                title="no mappings yet"
+                description="add the first disease or symptom mapping using the form."
+              />
+            </div>
+          ) : (
+            <div className="overflow-x-auto px-2 pb-6">
+              <Table style={tableStyle}>
+                <THead>
+                  <TR style={{ borderBottom: `1px solid ${hair}` }}>
+                    <TH data-wf="i-4-1-0" scope="col" className={thCls} style={{ color: muted }}>
+                      Term
+                    </TH>
+                    <TH data-wf="i-4-1-1" scope="col" className={thCls} style={{ color: muted }}>
+                      Mapped specializations
+                    </TH>
+                    <TH data-wf="i-4-1-2" scope="col" className={thCls} style={{ color: muted }}>
+                      Actions
+                    </TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {mappings.map((m) => (
+                    <TR
+                      key={m.id}
+                      className={m.fresh ? "atrium-rise" : ""}
+                      style={{ borderBottom: `1px solid ${hair}` }}
+                    >
+                      <TD className={tdCls}>
+                        {editingMapId === m.id ? (
+                          <div>
+                            <Label htmlFor={"map-term-" + m.id} className="sr-only">
+                              Term
+                            </Label>
+                            <Input
+                              id={"map-term-" + m.id}
+                              value={editingMap.term}
+                              onChange={(e) =>
+                                setEditingMap({ ...editingMap, term: e.target.value })
+                              }
+                              className={inputCls}
+                              style={inputStyle}
+                              aria-invalid={editMapErrors.term ? "true" : undefined}
+                              aria-describedby={
+                                editMapErrors.term ? "map-term-err-" + m.id : undefined
+                              }
+                            />
+                            {editMapErrors.term ? (
+                              <p
+                                id={"map-term-err-" + m.id}
+                                className="mt-2 text-xs"
+                                style={{ color: clay }}
+                              >
+                                {editMapErrors.term}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <>
+                            <span className="font-medium" style={{ color: ink }}>
+                              {m.term}
+                            </span>
+                            <span className="ml-2 text-xs" style={{ color: muted }}>
+                              {m.id}
+                            </span>
+                          </>
+                        )}
+                      </TD>
+                      <TD className={tdCls}>
+                        {editingMapId === m.id ? (
+                          <fieldset>
+                            <legend className="sr-only">Specializations</legend>
+                            <div className="flex flex-wrap gap-3">
+                              {activeSpecs.map((s) => (
+                                <label
+                                  key={s.id}
+                                  className="inline-flex items-center gap-2 text-xs"
+                                  style={{ color: ink }}
+                                >
+                                  <Checkbox
+                                    checked={editingMap.specialization_ids.includes(s.id)}
+                                    onChange={(e) =>
+                                      setEditingMap((prev) => ({
+                                        ...prev,
+                                        specialization_ids: e.target.checked
+                                          ? [...prev.specialization_ids, s.id]
+                                          : prev.specialization_ids.filter((x) => x !== s.id),
+                                      }))
+                                    }
+                                  />
+                                  {s.name}
+                                </label>
+                              ))}
+                            </div>
+                            {editMapErrors.specialization_ids ? (
+                              <p className="mt-2 text-xs" style={{ color: clay }}>
+                                {editMapErrors.specialization_ids}
+                              </p>
+                            ) : null}
+                          </fieldset>
+                        ) : (
+                          <ul className="flex flex-wrap gap-2">
+                            {m.specialization_ids.map((id) => (
+                              <li
+                                key={id}
+                                className="rounded-full px-3 py-1 text-xs"
+                                style={{ backgroundColor: inset, color: ink }}
+                              >
+                                {specName(id)}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </TD>
+                      <TD className={tdCls}>
+                        <div className="flex flex-wrap items-center gap-3">
+                          {editingMapId === m.id ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => saveEditMapping(m)}
+                                disabled={mapRowBusyId === m.id}
+                                className={
+                                  "rounded-full px-3 py-1.5 text-xs font-medium " + btnFocus
+                                }
+                                style={primaryBtn}
+                              >
+                                Save<span className="sr-only"> {m.term}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelEditMapping}
+                                className={
+                                  "rounded-full px-2 py-1 text-xs underline-offset-4 hover:underline " +
+                                  btnFocus
+                                }
+                                style={{ color: muted, ...ringVars }}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => startEditMapping(m)}
+                                className={
+                                  "rounded-full px-2 py-1 text-xs underline-offset-4 hover:underline " +
+                                  btnFocus
+                                }
+                                style={{ color: ink, ...ringVars }}
+                              >
+                                Edit<span className="sr-only"> {m.term}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeMapping(m)}
+                                disabled={mapRowBusyId === m.id}
+                                className={
+                                  "rounded-full px-2 py-1 text-xs underline-offset-4 hover:underline " +
+                                  btnFocus
+                                }
+                                style={{ color: muted, ...ringVars }}
+                              >
+                                Remove<span className="sr-only"> {m.term}</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+            </div>
+          )}
+        </section>
 
-      <div className="space-y-4">
+        <section
+          data-wf="b-4-2"
+          className="lg:col-span-5"
+          style={archStyle}
+          aria-labelledby="new-map-h"
+        >
+          <form id="new-map-form" onSubmit={submitMapping} className="px-6 pb-6 pt-12 sm:px-8">
+            <div className="text-center">
+              <span
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full"
+                style={{ backgroundColor: alpha(brass, 0.22), color: accentText }}
+              >
+                <Icons.Plus className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <h2
+                id="new-map-h"
+                className="mt-4 text-[26px] leading-tight"
+                style={{ fontFamily: brand.fontHeading, fontStyle: "italic", color: ink }}
+              >
+                Add a mapping entry
+              </h2>
+              <p
+                className="mx-auto mt-2 max-w-[42ch] text-[13px] leading-relaxed"
+                style={{ color: muted }}
+              >
+                linked specializations are used by patient search as soon as this is saved.
+              </p>
+            </div>
+
+            <div className="mt-8 space-y-5">
+              <div>
+                <Label
+                  htmlFor="map-term"
+                  className="mb-2 block text-[13px] font-medium"
+                  style={{ color: ink }}
+                >
+                  Disease or symptom term
+                </Label>
+                <Input
+                  data-wf="i-4-2-0"
+                  id="map-term"
+                  value={mapForm.term}
+                  onChange={(e) => setMapForm({ ...mapForm, term: e.target.value })}
+                  placeholder="persistent cough"
+                  className={inputCls}
+                  style={inputStyle}
+                  aria-invalid={mapFormErrors.term ? "true" : undefined}
+                  aria-describedby={mapFormErrors.term ? "map-term-err" : undefined}
+                />
+                {mapFormErrors.term ? (
+                  <p id="map-term-err" className="mt-2 text-xs" style={{ color: clay }}>
+                    {mapFormErrors.term}
+                  </p>
+                ) : null}
+              </div>
+
+              <fieldset>
+                <legend className="mb-2 block text-[13px] font-medium" style={{ color: ink }}>
+                  Specializations
+                </legend>
+                <div className="flex flex-wrap gap-3">
+                  {activeSpecs.map((s) => (
+                    <label
+                      key={s.id}
+                      className="inline-flex items-center gap-2 text-xs"
+                      style={{ color: ink }}
+                    >
+                      <Checkbox
+                        checked={mapForm.specialization_ids.includes(s.id)}
+                        onChange={(e) =>
+                          setMapForm((prev) => ({
+                            ...prev,
+                            specialization_ids: e.target.checked
+                              ? [...prev.specialization_ids, s.id]
+                              : prev.specialization_ids.filter((x) => x !== s.id),
+                          }))
+                        }
+                      />
+                      {s.name}
+                    </label>
+                  ))}
+                </div>
+                {mapFormErrors.specialization_ids ? (
+                  <p className="mt-2 text-xs" style={{ color: clay }}>
+                    {mapFormErrors.specialization_ids}
+                  </p>
+                ) : null}
+              </fieldset>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      <div className="md:col-span-4">
         <Button
           data-wf="b-5-1"
-          type="button"
-          onClick={addMapping}
-          disabled={!mapQueue.length}
-          aria-describedby="add-map-hint"
+          type="submit"
+          form="new-map-form"
+          disabled={mapSaving}
           className={
-            "inline-flex items-center gap-2 px-6 py-3.5 text-sm font-medium " +
+            "inline-flex items-center gap-2 px-6 py-3.5 text-sm font-medium transition-opacity " +
             btnFocus +
-            (mapQueue.length ? " hover:opacity-90" : " opacity-45")
+            (mapSaving ? " opacity-70" : " hover:opacity-90")
           }
           style={primaryBtn}
         >
           <Icons.Plus className="h-4 w-4" aria-hidden="true" />
-          Add mapping entry
+          {mapSaving ? "adding…" : "Add mapping entry"}
         </Button>
-        <p
-          id="add-map-hint"
-          className="max-w-[66ch] text-[13px] leading-relaxed"
-          style={{ color: muted, fontVariantNumeric: "tabular-nums" }}
-        >
-          {mapQueue.length
-            ? "next in line: “" +
-              mapQueue[0].term +
-              "” → " +
-              mapQueue[0].specs.join(" and ") +
-              " · " +
-              mapQueue.length +
-              " reviewed from last week's unmapped searches."
-            : "every reviewed search term is mapped — new ones appear here once the clinical lead has looked at them."}
-        </p>
       </div>
     </div>
   );

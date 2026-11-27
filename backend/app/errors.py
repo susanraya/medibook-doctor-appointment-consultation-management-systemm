@@ -38,3 +38,13 @@ SPECIALIZATION_IN_USE = {
         "and cannot be deleted"
     ),
 }
+
+MAPPING_NOT_FOUND = {
+    "status_code": 404,
+    "detail": "Mapping entry not found",
+}
+
+MAPPING_TERM_TAKEN = {
+    "status_code": 409,
+    "detail": "A mapping entry for that disease or symptom already exists",
+}

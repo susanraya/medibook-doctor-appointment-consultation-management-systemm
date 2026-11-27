@@ -145,6 +145,48 @@ class SpecializationDeleteOut(BaseModel):
     deleted: bool = True
 
 
+class DiseaseMappingCreateRequest(BaseModel):
+    """POST /admin/mappings's body: links a disease or symptom term to one or
+    more specializations (AC-052). Rejected until every specialization id
+    names one that exists (AC-053)."""
+
+    term: str = Field(min_length=1, max_length=255)
+    specialization_ids: list[str] = Field(min_length=1)
+
+
+class DiseaseMappingUpdateRequest(BaseModel):
+    """PUT /admin/mappings's body: replaces an existing entry's term and/or
+    specialization list (AC-052). `id` names which one, since the path
+    carries none. Rejected until every specialization id names one that
+    exists (AC-053)."""
+
+    id: str
+    term: str = Field(min_length=1, max_length=255)
+    specialization_ids: list[str] = Field(min_length=1)
+
+
+class DiseaseMappingOut(BaseModel):
+    """One disease/symptom-to-specialization mapping entry, as patient search
+    uses it immediately after it is saved (AC-052)."""
+
+    id: str
+    term: str
+    specialization_ids: list[str]
+
+
+class DiseaseMappingListOut(BaseModel):
+    """GET /admin/mappings's response: every mapping entry (AC-052)."""
+
+    mappings: list[DiseaseMappingOut]
+
+
+class DiseaseMappingDeleteOut(BaseModel):
+    """DELETE /admin/mappings's response on success (AC-052)."""
+
+    id: str
+    deleted: bool = True
+
+
 class FirstLoginPasswordRequest(BaseModel):
     """POST /auth/first-login-password's body."""
 
