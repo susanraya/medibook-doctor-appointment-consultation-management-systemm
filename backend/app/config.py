@@ -26,14 +26,12 @@ class Settings:
             for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
             if origin.strip()
         ]
-        # Public: the bearer the generated frontend sends on every call. Never sign
-        # anything with it -- it is not a secret, just a shared handshake value.
+        # Not a secret despite the name: it is the public bearer value the generated
+        # frontend sends on every call, used only to compare against incoming
+        # requests. Never sign anything with it.
         self.secret_key = os.getenv("SECRET_KEY", "local-dev-secret-key")
         # Private: signs session material. Never sent to the frontend, never logged.
         self.jwt_secret_key = os.getenv("JWT_SECRET_KEY", "local-dev-jwt-secret-key")
-        # A writable directory that survives redeploys on the real deployment; a local
-        # throwaway folder here, created on demand rather than assumed to exist.
-        self.media_root = os.getenv("MEDIA_ROOT", "./media")
 
         # Platform-provided only on the deployed API (and in CI/E2E runs); unset here
         # and in a bare `pytest` run, where nothing should be seeded.

@@ -7,9 +7,24 @@ import { Icons } from "@/lib/icons";
 import { brand } from "@/lib/brand";
 import { useNavigate } from "@/lib/navigate";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, Select, Table, THead, TBody, TR, TH, TD, Avatar, Empty } = UI;
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const {
+  Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  Select,
+  Table,
+  THead,
+  TBody,
+  TR,
+  TH,
+  TD,
+  Avatar,
+  Empty,
+} = UI;
+
 const { Home, ArrowLeft, ArrowRight } = Icons;
 
 const PATIENT_EMAIL = "susan.raya@quorq.ai";
@@ -49,8 +64,7 @@ const INITIAL_APPOINTMENTS = [
     group: "past",
     record: {
       diagnosis: "Stable angina.",
-      notes:
-        "Chest discomfort on exertion, blood pressure 130/84, ECG unremarkable.",
+      notes: "Chest discomfort on exertion, blood pressure 130/84, ECG unremarkable.",
       prescription: "Aspirin 75 mg once daily; review in six weeks.",
       updatedAt: "filed 02 nov 2026, 11:18",
     },
@@ -150,7 +164,7 @@ export default function Screen() {
             .map((c) => c + c)
             .join("")
         : h,
-      16
+      16,
     );
     return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
   };
@@ -182,8 +196,7 @@ export default function Screen() {
   const past = appointments.filter((a) => a.group === "past");
   const cancelled = appointments.filter((a) => a.group === "cancelled");
 
-  const selectedUpcomingApt =
-    upcoming.find((a) => a.id === selectedUpcoming) || null;
+  const selectedUpcomingApt = upcoming.find((a) => a.id === selectedUpcoming) || null;
   const selectedPastApt = past.find((a) => a.id === selectedPast) || past[0];
 
   // keep selection honest when the list changes
@@ -206,8 +219,8 @@ export default function Screen() {
                 status: "cancelled",
                 note: "cancelled by you on 16 nov · slot returned to the diary",
               }
-            : a
-        )
+            : a,
+        ),
       );
       setJustChanged(cancelling);
       setBanner({
@@ -260,10 +273,10 @@ export default function Screen() {
       status === "confirmed"
         ? { bg: rgba(A, 0.2), icon: Icons.CheckCircle }
         : status === "completed"
-        ? { bg: rgba(P, 0.1), icon: Icons.Check }
-        : status === "no-show"
-        ? { bg: rgba(N, 0.3), icon: Icons.AlertCircle }
-        : { bg: "transparent", icon: Icons.X };
+          ? { bg: rgba(P, 0.1), icon: Icons.Check }
+          : status === "no-show"
+            ? { bg: rgba(N, 0.3), icon: Icons.AlertCircle }
+            : { bg: "transparent", icon: Icons.X };
     const Ico = tone.icon;
     return (
       <span
@@ -381,12 +394,12 @@ export default function Screen() {
   const actionHelp = cancelling
     ? "releasing the slot and emailing the cancellation…"
     : tab === "past"
-    ? "past visits can't be moved or cancelled — pick an upcoming one, or book again."
-    : tab === "cancelled"
-    ? "this visit is already cancelled. book another when you're ready."
-    : upcoming.length === 0
-    ? "nothing upcoming to change right now."
-    : "cancels the appointment selected above and gives the slot back straight away.";
+      ? "past visits can't be moved or cancelled — pick an upcoming one, or book again."
+      : tab === "cancelled"
+        ? "this visit is already cancelled. book another when you're ready."
+        : upcoming.length === 0
+          ? "nothing upcoming to change right now."
+          : "cancels the appointment selected above and gives the slot back straight away.";
 
   return (
     <div
@@ -407,10 +420,7 @@ export default function Screen() {
       <div className="mx-auto w-full max-w-5xl">
         {/* Row 1 — page title */}
         <header className="mb-8">
-          <p
-            className="mb-3 text-[12px] uppercase tracking-[0.18em]"
-            style={{ color: inkSoft }}
-          >
+          <p className="mb-3 text-[12px] uppercase tracking-[0.18em]" style={{ color: inkSoft }}>
             fernbrook clinic · patient
           </p>
           <h1
@@ -421,8 +431,8 @@ export default function Screen() {
             My Appointments
           </h1>
           <p className="mt-3 max-w-[62ch] text-[15px] leading-relaxed" style={{ color: inkSoft }}>
-            every visit you've booked with us, and the notes your doctor wrote
-            afterwards. move or cancel an upcoming slot here — no need to call.
+            every visit you've booked with us, and the notes your doctor wrote afterwards. move or
+            cancel an upcoming slot here — no need to call.
           </p>
         </header>
 
@@ -545,11 +555,7 @@ export default function Screen() {
             {(tab === "upcoming" ? upcoming : cancelled).length === 0 ? (
               <div className="px-6 pb-8">
                 <Empty
-                  title={
-                    tab === "upcoming"
-                      ? "nothing on the calendar"
-                      : "no cancelled visits"
-                  }
+                  title={tab === "upcoming" ? "nothing on the calendar" : "no cancelled visits"}
                   description={
                     tab === "upcoming"
                       ? "you have no upcoming visits. search by a symptom, a condition or a specialization and we'll show you who's free this week."
@@ -572,26 +578,50 @@ export default function Screen() {
               <Table className="w-full" style={{ fontVariantNumeric: "tabular-nums" }}>
                 <THead>
                   <TR>
-                    <TH className="py-3 pl-6 pr-0 text-left text-[12px] uppercase tracking-[0.14em]" style={colHeadStyle}>
+                    <TH
+                      className="py-3 pl-6 pr-0 text-left text-[12px] uppercase tracking-[0.14em]"
+                      style={colHeadStyle}
+                    >
                       <span className="sr-only">Select</span>
                     </TH>
-                    <TH data-wf="i-2-0-0" className="py-3 text-left text-[12px] uppercase tracking-[0.14em]" style={colHeadStyle}>
+                    <TH
+                      data-wf="i-2-0-0"
+                      className="py-3 text-left text-[12px] uppercase tracking-[0.14em]"
+                      style={colHeadStyle}
+                    >
                       Doctor
                     </TH>
-                    <TH data-wf="i-2-0-1" className="py-3 text-left text-[12px] uppercase tracking-[0.14em]" style={colHeadStyle}>
+                    <TH
+                      data-wf="i-2-0-1"
+                      className="py-3 text-left text-[12px] uppercase tracking-[0.14em]"
+                      style={colHeadStyle}
+                    >
                       Specialization
                     </TH>
-                    <TH data-wf="i-2-0-2" className="py-3 text-left text-[12px] uppercase tracking-[0.14em]" style={colHeadStyle}>
+                    <TH
+                      data-wf="i-2-0-2"
+                      className="py-3 text-left text-[12px] uppercase tracking-[0.14em]"
+                      style={colHeadStyle}
+                    >
                       Date &amp; time
                     </TH>
-                    <TH data-wf="i-2-0-3" className="py-3 pr-6 text-left text-[12px] uppercase tracking-[0.14em]" style={colHeadStyle}>
+                    <TH
+                      data-wf="i-2-0-3"
+                      className="py-3 pr-6 text-left text-[12px] uppercase tracking-[0.14em]"
+                      style={colHeadStyle}
+                    >
                       Status
                     </TH>
                   </TR>
                 </THead>
                 <TBody>
                   {tab === "upcoming"
-                    ? renderRows(upcoming, "upcoming-appointment", selectedUpcoming, setSelectedUpcoming)
+                    ? renderRows(
+                        upcoming,
+                        "upcoming-appointment",
+                        selectedUpcoming,
+                        setSelectedUpcoming,
+                      )
                     : renderRows(cancelled, "cancelled-appointment", "", () => {})}
                 </TBody>
               </Table>
@@ -629,13 +659,10 @@ export default function Screen() {
             <Button
               data-wf="b-3-1"
               disabled={!canAct || !!cancelling}
-              onClick={() =>
-                selectedUpcomingApt && setCancelling(selectedUpcomingApt.id)
-              }
+              onClick={() => selectedUpcomingApt && setCancelling(selectedUpcomingApt.id)}
               aria-describedby="action-help"
               className={
-                "w-full min-h-[52px] rounded-full px-6 text-[16px] disabled:opacity-45 " +
-                focusRing
+                "w-full min-h-[52px] rounded-full px-6 text-[16px] disabled:opacity-45 " + focusRing
               }
               style={{
                 backgroundColor: "transparent",
@@ -696,26 +723,43 @@ export default function Screen() {
             <Table className="w-full" style={{ fontVariantNumeric: "tabular-nums" }}>
               <THead>
                 <TR>
-                  <TH className="py-3 pl-6 pr-0 text-left text-[12px] uppercase tracking-[0.14em]" style={colHeadStyle}>
+                  <TH
+                    className="py-3 pl-6 pr-0 text-left text-[12px] uppercase tracking-[0.14em]"
+                    style={colHeadStyle}
+                  >
                     <span className="sr-only">Select</span>
                   </TH>
-                  <TH data-wf="i-4-0-0" className="py-3 text-left text-[12px] uppercase tracking-[0.14em]" style={colHeadStyle}>
+                  <TH
+                    data-wf="i-4-0-0"
+                    className="py-3 text-left text-[12px] uppercase tracking-[0.14em]"
+                    style={colHeadStyle}
+                  >
                     Doctor
                   </TH>
-                  <TH data-wf="i-4-0-1" className="py-3 text-left text-[12px] uppercase tracking-[0.14em]" style={colHeadStyle}>
+                  <TH
+                    data-wf="i-4-0-1"
+                    className="py-3 text-left text-[12px] uppercase tracking-[0.14em]"
+                    style={colHeadStyle}
+                  >
                     Specialization
                   </TH>
-                  <TH data-wf="i-4-0-2" className="py-3 text-left text-[12px] uppercase tracking-[0.14em]" style={colHeadStyle}>
+                  <TH
+                    data-wf="i-4-0-2"
+                    className="py-3 text-left text-[12px] uppercase tracking-[0.14em]"
+                    style={colHeadStyle}
+                  >
                     Date &amp; time
                   </TH>
-                  <TH data-wf="i-4-0-3" className="py-3 pr-6 text-left text-[12px] uppercase tracking-[0.14em]" style={colHeadStyle}>
+                  <TH
+                    data-wf="i-4-0-3"
+                    className="py-3 pr-6 text-left text-[12px] uppercase tracking-[0.14em]"
+                    style={colHeadStyle}
+                  >
                     Status
                   </TH>
                 </TR>
               </THead>
-              <TBody>
-                {renderRows(past, "past-appointment", selectedPast, setSelectedPast)}
-              </TBody>
+              <TBody>{renderRows(past, "past-appointment", selectedPast, setSelectedPast)}</TBody>
             </Table>
           </SectionPanel>
         ) : null}
@@ -740,7 +784,10 @@ export default function Screen() {
                 className="mx-auto mb-5 block h-10 w-[1px]"
                 style={{ backgroundColor: rgba(P, 0.3) }}
               />
-              <CardTitle className="text-[22px] italic leading-snug sm:text-[26px]" style={headingFont}>
+              <CardTitle
+                className="text-[22px] italic leading-snug sm:text-[26px]"
+                style={headingFont}
+              >
                 Consultation record — {selectedPastApt.doctor} ·{" "}
                 <span style={{ fontVariantNumeric: "tabular-nums" }}>
                   {selectedPastApt.dateLabel.replace(/^\w{3}\s/, "")},{" "}
@@ -749,9 +796,7 @@ export default function Screen() {
               </CardTitle>
               <CardDescription className="mt-2 text-[14px]" style={{ color: inkSoft }}>
                 {selectedPastApt.specialization} · ref {selectedPastApt.id} ·{" "}
-                {selectedPastApt.record
-                  ? selectedPastApt.record.updatedAt
-                  : "no record on file"}
+                {selectedPastApt.record ? selectedPastApt.record.updatedAt : "no record on file"}
               </CardDescription>
             </CardHeader>
             <CardContent className="px-8 pb-8 sm:px-14">
@@ -759,8 +804,8 @@ export default function Screen() {
                 className="mx-auto max-w-[58ch] text-center text-[13px] leading-relaxed"
                 style={{ color: inkSoft }}
               >
-                only you, {selectedPastApt.doctor} and clinic administrators can open
-                this record. every time it is viewed, the clinic's audit log notes it.
+                only you, {selectedPastApt.doctor} and clinic administrators can open this record.
+                every time it is viewed, the clinic's audit log notes it.
               </p>
             </CardContent>
           </Card>
@@ -798,24 +843,32 @@ export default function Screen() {
               </dl>
             ) : selectedPastApt.recordState === "no-visit" ? (
               <div className="mx-auto max-w-[62ch] text-center">
-                <Icons.AlertCircle className="mx-auto mb-3 h-6 w-6" aria-hidden="true" style={{ color: ink }} />
+                <Icons.AlertCircle
+                  className="mx-auto mb-3 h-6 w-6"
+                  aria-hidden="true"
+                  style={{ color: ink }}
+                />
                 <p className="text-[17px] italic" style={headingFont}>
                   no consultation took place
                 </p>
                 <p className="mt-2 text-[15px] leading-relaxed" style={{ color: inkSoft }}>
-                  the clinic marked this visit as a no-show on 09 oct 2026, so there is
-                  nothing to record. you can book again whenever you're ready.
+                  the clinic marked this visit as a no-show on 09 oct 2026, so there is nothing to
+                  record. you can book again whenever you're ready.
                 </p>
               </div>
             ) : (
               <div className="mx-auto max-w-[62ch] text-center">
-                <Icons.FileText className="mx-auto mb-3 h-6 w-6" aria-hidden="true" style={{ color: ink }} />
+                <Icons.FileText
+                  className="mx-auto mb-3 h-6 w-6"
+                  aria-hidden="true"
+                  style={{ color: ink }}
+                />
                 <p className="text-[17px] italic" style={headingFont}>
                   {selectedPastApt.doctor} hasn't filed this record yet
                 </p>
                 <p className="mt-2 text-[15px] leading-relaxed" style={{ color: inkSoft }}>
-                  notes usually appear within two working days of a visit. if it's been
-                  longer, call the front desk on {CLINIC_PHONE}.
+                  notes usually appear within two working days of a visit. if it's been longer, call
+                  the front desk on {CLINIC_PHONE}.
                 </p>
               </div>
             )}
@@ -836,10 +889,13 @@ export default function Screen() {
           </span>
           <div className="max-w-[70ch]">
             <p className="text-[15px] leading-relaxed" style={{ color: ink }}>
-              Confirmation, reschedule and cancellation emails, plus a reminder 24 hours
-              before your visit, are sent to your registered email address.
+              Confirmation, reschedule and cancellation emails, plus a reminder 24 hours before your
+              visit, are sent to your registered email address.
             </p>
-            <ul className="mt-4 space-y-2 text-[13px]" style={{ color: inkSoft, fontVariantNumeric: "tabular-nums" }}>
+            <ul
+              className="mt-4 space-y-2 text-[13px]"
+              style={{ color: inkSoft, fontVariantNumeric: "tabular-nums" }}
+            >
               <li className="flex items-center gap-2">
                 <Icons.Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 confirmation sent to {PATIENT_EMAIL} on 29 oct 2026, 18:02

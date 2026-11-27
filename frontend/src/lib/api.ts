@@ -102,3 +102,19 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
 }
+
+// POST /me/consent's response: the recorded consent with its audit timestamp (AC-017).
+export interface ConsentResponse {
+  consented: boolean;
+  consented_at: string;
+}
+
+// Records the signed-in patient's consent to the clinic storing and processing
+// their health data. Calling this endpoint is itself the explicit acceptance
+// (AC-016), so `accepted` is always sent as `true`.
+export async function giveConsent(): Promise<ConsentResponse> {
+  return apiFetch<ConsentResponse>("/me/consent", {
+    method: "POST",
+    body: JSON.stringify({ accepted: true }),
+  });
+}

@@ -8,7 +8,8 @@ import { brand } from "@/lib/brand";
 import { useNavigate } from "@/lib/navigate";
 import { ApiError, apiFetch } from "@/lib/api";
 
-const { Button, Input, Label, Select, Table, THead, TBody, TR, TH, TD, Avatar, Empty } = UI;
+const { Button, Input, Label, Select, Checkbox, Table, THead, TBody, TR, TH, TD, Avatar, Empty } =
+  UI;
 
 const { User, Home, ArrowLeft, ArrowRight } = Icons;
 
@@ -23,74 +24,9 @@ const TAB_DEFS = [
   { key: "email", label: "Email & logs", wf: "i-1-0-5" },
 ];
 
-const SPECS_SEED = [
-  { id: "SPC-001", name: "Cardiology", doctors: 3, mappings: 4, is_active: true },
-  { id: "SPC-002", name: "Dermatology", doctors: 2, mappings: 5, is_active: true },
-  { id: "SPC-003", name: "Endocrinology", doctors: 1, mappings: 3, is_active: true },
-  { id: "SPC-004", name: "ENT (Otolaryngology)", doctors: 1, mappings: 2, is_active: true },
-  { id: "SPC-005", name: "Gastroenterology", doctors: 2, mappings: 3, is_active: true },
-  { id: "SPC-006", name: "General Medicine", doctors: 4, mappings: 7, is_active: true },
-  { id: "SPC-007", name: "Neurology", doctors: 2, mappings: 4, is_active: true },
-  { id: "SPC-008", name: "Orthopaedics", doctors: 2, mappings: 3, is_active: true },
-  { id: "SPC-009", name: "Paediatrics", doctors: 3, mappings: 2, is_active: true },
-  { id: "SPC-010", name: "Psychiatry", doctors: 1, mappings: 3, is_active: false },
-  { id: "SPC-011", name: "Pulmonology", doctors: 1, mappings: 2, is_active: true },
-  { id: "SPC-012", name: "Travel Medicine", doctors: 0, mappings: 0, is_active: false },
-];
-
-const SPEC_BACKLOG = ["Rheumatology", "Ophthalmology", "Urology"];
-
-const MAPPING_BACKLOG = [
-  { term: "ringing in the ears", specs: ["ENT (Otolaryngology)"] },
-  { term: "palpitations", specs: ["Cardiology", "General Medicine"] },
-  { term: "persistent cough", specs: ["Pulmonology", "General Medicine"] },
-];
-
 // Doctor and admin accounts come from the server (GET /admin/users); no sample
-// staff rows are seeded here any more (US-003-2).
-
-const MAPPINGS_SEED = [
-  {
-    id: "MAP-014",
-    term: "chest pain",
-    specs: ["Cardiology", "General Medicine"],
-    updated: "14 Nov 2026",
-  },
-  {
-    id: "MAP-013",
-    term: "shortness of breath",
-    specs: ["Pulmonology", "Cardiology"],
-    updated: "12 Nov 2026",
-  },
-  {
-    id: "MAP-011",
-    term: "migraine",
-    specs: ["Neurology", "General Medicine"],
-    updated: "09 Nov 2026",
-  },
-  { id: "MAP-010", term: "eczema", specs: ["Dermatology"], updated: "09 Nov 2026" },
-  {
-    id: "MAP-009",
-    term: "type 2 diabetes",
-    specs: ["Endocrinology", "General Medicine"],
-    updated: "06 Nov 2026",
-  },
-  {
-    id: "MAP-008",
-    term: "persistent sore throat",
-    specs: ["ENT (Otolaryngology)"],
-    updated: "04 Nov 2026",
-  },
-  { id: "MAP-007", term: "acid reflux", specs: ["Gastroenterology"], updated: "02 Nov 2026" },
-  { id: "MAP-006", term: "knee injury", specs: ["Orthopaedics"], updated: "28 Oct 2026" },
-  { id: "MAP-004", term: "childhood fever", specs: ["Paediatrics"], updated: "26 Oct 2026" },
-  {
-    id: "MAP-002",
-    term: "low mood",
-    specs: ["Psychiatry", "General Medicine"],
-    updated: "21 Oct 2026",
-  },
-];
+// staff rows are seeded here any more (US-003-2). The disease/symptom mapping
+// table (US-022) is likewise owned by the server, not seeded here.
 
 const APPTS_SEED = [
   {
@@ -482,10 +418,16 @@ export default function Screen() {
     email: "",
     phone: "",
     role: "doctor",
+    specialization_id: "",
   });
   const [acctErrors, setAcctErrors] = React.useState({});
   const [acctSaving, setAcctSaving] = React.useState(false);
   const [acctNotice, setAcctNotice] = React.useState(null);
+
+  const specName = (id) => {
+    const match = specs.find((s) => s.id === id);
+    return match ? match.name : id || "—";
+  };
 
   const toAccountRow = (u) => ({
     id: u.id,
@@ -496,7 +438,7 @@ export default function Screen() {
     is_active: u.is_active,
     password_status: u.password_status,
     status: u.is_active ? "active" : "deactivated",
-    specialization: "—",
+    specialization_id: u.specialization_id ?? null,
   });
 
   React.useEffect(() => {
@@ -519,14 +461,79 @@ export default function Screen() {
     };
   }, []);
 
-  const [specs, setSpecs] = React.useState(SPECS_SEED);
-  const [specQueue, setSpecQueue] = React.useState(SPEC_BACKLOG);
+  const [specs, setSpecs] = React.useState([]);
+  const [specsLoading, setSpecsLoading] = React.useState(true);
+  const [specsError, setSpecsError] = React.useState(null); // "forbidden" | "error" | null
+  const [specForm, setSpecForm] = React.useState({ name: "" });
+  const [specFormError, setSpecFormError] = React.useState("");
+  const [specSaving, setSpecSaving] = React.useState(false);
   const [specNotice, setSpecNotice] = React.useState(null);
   const [specBlock, setSpecBlock] = React.useState(null);
+  const [editingSpecId, setEditingSpecId] = React.useState(null);
+  const [editingSpecName, setEditingSpecName] = React.useState("");
+  const [editSpecError, setEditSpecError] = React.useState("");
+  const [specRowBusyId, setSpecRowBusyId] = React.useState(null);
 
-  const [mappings, setMappings] = React.useState(MAPPINGS_SEED);
-  const [mapQueue, setMapQueue] = React.useState(MAPPING_BACKLOG);
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setSpecsLoading(true);
+      setSpecsError(null);
+      try {
+        const res = await apiFetch("/admin/specializations");
+        if (!cancelled) setSpecs(res.specializations ?? []);
+      } catch (err) {
+        if (cancelled) return;
+        setSpecsError(err instanceof ApiError && err.status === 403 ? "forbidden" : "error");
+      } finally {
+        if (!cancelled) setSpecsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const [mappings, setMappings] = React.useState([]);
+  const [mappingsLoading, setMappingsLoading] = React.useState(true);
+  const [mappingsError, setMappingsError] = React.useState(null); // "forbidden" | "error" | null
+  const [mapForm, setMapForm] = React.useState({ term: "", specialization_ids: [] });
+  const [mapFormErrors, setMapFormErrors] = React.useState({});
+  const [mapSaving, setMapSaving] = React.useState(false);
   const [mapNotice, setMapNotice] = React.useState(null);
+  const [editingMapId, setEditingMapId] = React.useState(null);
+  const [editingMap, setEditingMap] = React.useState({ term: "", specialization_ids: [] });
+  const [editMapErrors, setEditMapErrors] = React.useState({});
+  const [mapRowBusyId, setMapRowBusyId] = React.useState(null);
+  const [mappingsLoaded, setMappingsLoaded] = React.useState(false);
+
+  // Fetched lazily, the first time the Disease mappings tab is opened, rather
+  // than at mount alongside accounts and specializations: those two feed the
+  // other tabs too, but nothing needs the mapping table before an admin asks
+  // for it.
+  React.useEffect(() => {
+    if (tab !== "mappings" || mappingsLoaded) return undefined;
+    let cancelled = false;
+    (async () => {
+      setMappingsLoading(true);
+      setMappingsError(null);
+      try {
+        const res = await apiFetch("/admin/mappings");
+        if (!cancelled) {
+          setMappings(res.mappings ?? []);
+          setMappingsLoaded(true);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setMappingsError(err instanceof ApiError && err.status === 403 ? "forbidden" : "error");
+      } finally {
+        if (!cancelled) setMappingsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, mappingsLoaded]);
 
   const [appts, setAppts] = React.useState(APPTS_SEED);
   const [usedSlots, setUsedSlots] = React.useState([]);
@@ -710,6 +717,8 @@ export default function Screen() {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(acctForm.email.trim()))
       errs.email = "that does not look like an email address.";
     if (!acctForm.phone.trim()) errs.phone = "a contact phone number is needed.";
+    if (acctForm.role === "doctor" && !acctForm.specialization_id)
+      errs.specialization_id = "a specialization is needed so they appear in patient search.";
     setAcctErrors(errs);
     if (Object.keys(errs).length) {
       setAcctNotice(null);
@@ -725,6 +734,7 @@ export default function Screen() {
           email: acctForm.email.trim(),
           phone: acctForm.phone.trim(),
           role: acctForm.role,
+          ...(acctForm.role === "doctor" ? { specialization_id: acctForm.specialization_id } : {}),
         }),
       });
       const row = { ...toAccountRow(created), fresh: true };
@@ -738,7 +748,7 @@ export default function Screen() {
           row.role +
           " account. the password is held as <set-at-first-login> until they sign in and set their own.",
       });
-      setAcctForm({ full_name: "", email: "", phone: "", role: "doctor" });
+      setAcctForm({ full_name: "", email: "", phone: "", role: "doctor", specialization_id: "" });
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setAcctErrors({ email: "that email is already in use." });
@@ -762,10 +772,16 @@ export default function Screen() {
   const toggleAccount = async (acct) => {
     const nextActive = !acct.is_active;
     try {
-      const updated = await apiFetch(`/admin/users/${acct.id}/status`, {
-        method: "PUT",
-        body: JSON.stringify({ is_active: nextActive }),
-      });
+      const updated =
+        acct.role === "doctor"
+          ? await apiFetch(`/admin/doctors/${acct.id}/status`, {
+              method: "PUT",
+              body: JSON.stringify({ is_active: nextActive }),
+            })
+          : await apiFetch(`/admin/users/${acct.id}/status`, {
+              method: "PUT",
+              body: JSON.stringify({ is_active: nextActive }),
+            });
       setAccounts((prev) =>
         prev.map((a) =>
           a.id === acct.id
@@ -777,28 +793,42 @@ export default function Screen() {
             : a,
         ),
       );
-      if (!updated.is_active) {
-        const affected = appts.filter((a) => a.doctorId === acct.id && a.status === "scheduled");
-        setAppts((prev) =>
-          prev.map((a) =>
-            a.doctorId === acct.id && a.status === "scheduled" ? { ...a, status: "reassign" } : a,
-          ),
-        );
-        pushAudit("doctor.deactivate", "user", acct.id);
+      if (acct.role === "doctor") {
+        const flagged = updated.flagged_appointment_ids || [];
+        if (!updated.is_active) {
+          setAppts((prev) =>
+            prev.map((a) =>
+              a.doctorId === acct.id && a.status === "scheduled" ? { ...a, status: "reassign" } : a,
+            ),
+          );
+          pushAudit("doctor.deactivate", "user", acct.id);
+          setAcctNotice({
+            tone: "warn",
+            text:
+              acct.full_name +
+              " is hidden from patient search and can no longer sign in. " +
+              flagged.length +
+              (flagged.length === 1 ? " appointment is" : " appointments are") +
+              " flagged for reassignment.",
+          });
+        } else {
+          pushAudit("doctor.reactivate", "user", acct.id);
+          setAcctNotice({
+            tone: "good",
+            text: acct.full_name + " is back in patient search and can sign in again.",
+          });
+        }
+      } else if (!updated.is_active) {
+        pushAudit("admin.deactivate", "user", acct.id);
         setAcctNotice({
           tone: "warn",
-          text:
-            acct.full_name +
-            " is hidden from patient search and can no longer sign in. " +
-            affected.length +
-            (affected.length === 1 ? " appointment is" : " appointments are") +
-            " flagged for reassignment.",
+          text: acct.full_name + " is deactivated and can no longer sign in.",
         });
       } else {
-        pushAudit("doctor.reactivate", "user", acct.id);
+        pushAudit("admin.reactivate", "user", acct.id);
         setAcctNotice({
           tone: "good",
-          text: acct.full_name + " is back in patient search and can sign in again.",
+          text: acct.full_name + " can sign in again.",
         });
       }
     } catch {
@@ -878,6 +908,9 @@ export default function Screen() {
                     <TH data-wf="i-2-0-2" scope="col" className={thCls} style={{ color: muted }}>
                       Role
                     </TH>
+                    <TH data-wf="i-2-0-2b" scope="col" className={thCls} style={{ color: muted }}>
+                      Specialization
+                    </TH>
                     <TH data-wf="i-2-0-3" scope="col" className={thCls} style={{ color: muted }}>
                       Password
                     </TH>
@@ -919,6 +952,9 @@ export default function Screen() {
                         >
                           {a.role}
                         </span>
+                      </TD>
+                      <TD className={tdCls} style={{ color: muted }}>
+                        {a.role === "doctor" ? specName(a.specialization_id) : "—"}
                       </TD>
                       <TD
                         className={tdCls}
@@ -1075,7 +1111,14 @@ export default function Screen() {
                   data-wf="i-2-1-3"
                   id="acct-role"
                   value={acctForm.role}
-                  onChange={(e) => setAcctForm({ ...acctForm, role: e.target.value })}
+                  onChange={(e) =>
+                    setAcctForm({
+                      ...acctForm,
+                      role: e.target.value,
+                      specialization_id:
+                        e.target.value === "doctor" ? acctForm.specialization_id : "",
+                    })
+                  }
                   className={inputCls}
                   style={inputStyle}
                 >
@@ -1083,6 +1126,48 @@ export default function Screen() {
                   <option value="admin">Admin</option>
                 </Select>
               </div>
+
+              {acctForm.role === "doctor" ? (
+                <div>
+                  <Label
+                    htmlFor="acct-specialization"
+                    className="mb-2 block text-[13px] font-medium"
+                    style={{ color: ink }}
+                  >
+                    Specialization
+                  </Label>
+                  <Select
+                    data-wf="i-2-1-3b"
+                    id="acct-specialization"
+                    value={acctForm.specialization_id}
+                    onChange={(e) =>
+                      setAcctForm({ ...acctForm, specialization_id: e.target.value })
+                    }
+                    className={inputCls}
+                    style={inputStyle}
+                    aria-invalid={acctErrors.specialization_id ? "true" : undefined}
+                    aria-describedby={
+                      acctErrors.specialization_id ? "acct-specialization-err" : undefined
+                    }
+                  >
+                    <option value="">Choose a specialization…</option>
+                    {activeSpecs.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </Select>
+                  {acctErrors.specialization_id ? (
+                    <p
+                      id="acct-specialization-err"
+                      className="mt-2 text-xs"
+                      style={{ color: clay }}
+                    >
+                      {acctErrors.specialization_id}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
 
               <p className="text-xs leading-relaxed" style={{ color: muted }}>
                 no credential is collected here — the account holder sets their own password the
@@ -1139,346 +1224,873 @@ export default function Screen() {
 
   /* ---------------- specializations ---------------- */
 
-  const addSpecialization = () => {
-    if (!specQueue.length) return;
-    const name = specQueue[0];
-    setSpecBlock(null);
-    if (specs.some((s) => s.name.toLowerCase() === name.toLowerCase())) {
-      setSpecQueue((q) => q.slice(1));
-      setSpecNotice(null);
-      setSpecBlock(
-        name +
-          " is already on the list, so nothing was added. it has been taken off the waiting list.",
-      );
+  const submitSpecialization = async (e) => {
+    e.preventDefault();
+    const name = specForm.name.trim();
+    if (!name) {
+      setSpecFormError("a name is needed to add a specialization.");
       return;
     }
-    const id = "SPC-0" + (13 + specs.length);
-    setSpecs((prev) => [
-      ...prev,
-      { id, name, doctors: 0, mappings: 0, is_active: true, fresh: true },
-    ]);
-    pushAudit("specialization.create", "specialization", id);
-    setSpecQueue((q) => q.slice(1));
-    setSpecNotice(
-      name +
-        " added from the list the clinical lead signed off. it is now offered wherever a specialization is chosen.",
-    );
+    setSpecFormError("");
+    setSpecSaving(true);
+    setSpecNotice(null);
+    try {
+      const created = await apiFetch("/admin/specializations", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+      setSpecs((prev) => [...prev, { ...created, fresh: true }]);
+      pushAudit("specialization.create", "specialization", created.id);
+      setSpecForm({ name: "" });
+      setSpecNotice({
+        tone: "good",
+        text: created.name + " added. it is now offered wherever a specialization is chosen.",
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setSpecFormError(
+          typeof err.detail === "string"
+            ? err.detail
+            : "a specialization with that name already exists.",
+        );
+      } else {
+        setSpecNotice({
+          tone: "warn",
+          text: "something went wrong adding that specialization — please try again.",
+        });
+      }
+    } finally {
+      setSpecSaving(false);
+    }
   };
 
-  const removeSpec = (s) => {
-    if (s.doctors > 0 || s.mappings > 0) {
-      setSpecNotice(null);
-      setSpecBlock(
-        s.name +
-          " is assigned to " +
-          s.doctors +
-          (s.doctors === 1 ? " doctor" : " doctors") +
-          " and used in " +
-          s.mappings +
-          (s.mappings === 1 ? " mapping entry" : " mapping entries") +
-          ". move those first, then it can be removed.",
-      );
+  const startRenameSpec = (s) => {
+    setSpecNotice(null);
+    setSpecBlock(null);
+    setEditingSpecId(s.id);
+    setEditingSpecName(s.name);
+    setEditSpecError("");
+  };
+
+  const cancelRenameSpec = () => {
+    setEditingSpecId(null);
+    setEditingSpecName("");
+    setEditSpecError("");
+  };
+
+  const saveRenameSpec = async (s) => {
+    const name = editingSpecName.trim();
+    if (!name) {
+      setEditSpecError("a name is needed.");
       return;
     }
-    setSpecs((prev) => prev.filter((x) => x.id !== s.id));
-    pushAudit("specialization.delete", "specialization", s.id);
+    setSpecRowBusyId(s.id);
+    try {
+      const updated = await apiFetch("/admin/specializations", {
+        method: "PUT",
+        body: JSON.stringify({ id: s.id, name }),
+      });
+      setSpecs((prev) => prev.map((x) => (x.id === s.id ? { ...x, name: updated.name } : x)));
+      pushAudit("specialization.rename", "specialization", s.id);
+      setEditingSpecId(null);
+      setEditingSpecName("");
+      setEditSpecError("");
+      setSpecNotice({
+        tone: "good",
+        text:
+          s.name +
+          " renamed to " +
+          updated.name +
+          ". the new name appears wherever a specialization is chosen.",
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setEditSpecError(
+          typeof err.detail === "string"
+            ? err.detail
+            : "a specialization with that name already exists.",
+        );
+      } else if (err instanceof ApiError && err.status === 404) {
+        setEditSpecError("that specialization no longer exists.");
+      } else {
+        setEditSpecError("something went wrong renaming that specialization — please try again.");
+      }
+    } finally {
+      setSpecRowBusyId(null);
+    }
+  };
+
+  const removeSpec = async (s) => {
+    setSpecNotice(null);
     setSpecBlock(null);
-    setSpecNotice(
-      s.name + " removed. no doctor and no mapping entry depended on it, so nothing else changed.",
-    );
+    setSpecRowBusyId(s.id);
+    try {
+      await apiFetch(`/admin/specializations?id=${encodeURIComponent(s.id)}`, {
+        method: "DELETE",
+      });
+      setSpecs((prev) => prev.filter((x) => x.id !== s.id));
+      pushAudit("specialization.delete", "specialization", s.id);
+      setSpecNotice({
+        tone: "good",
+        text: s.name + " removed. it no longer appears wherever a specialization is chosen.",
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setSpecBlock(
+          typeof err.detail === "string"
+            ? err.detail
+            : s.name +
+                " is assigned to doctors or used in the mapping table and cannot be deleted.",
+        );
+      } else if (err instanceof ApiError && err.status === 404) {
+        setSpecs((prev) => prev.filter((x) => x.id !== s.id));
+      } else {
+        setSpecNotice({
+          tone: "warn",
+          text: "could not remove " + s.name + " — please try again.",
+        });
+      }
+    } finally {
+      setSpecRowBusyId(null);
+    }
   };
 
   const renderSpecializations = () => (
     <div className="space-y-8">
-      {specNotice ? noticeBar("good", specNotice, () => setSpecNotice(null)) : null}
+      {specNotice ? noticeBar(specNotice.tone, specNotice.text, () => setSpecNotice(null)) : null}
       {specBlock ? noticeBar("warn", specBlock, () => setSpecBlock(null)) : null}
 
-      <section data-wf="b-4-0" style={panelStyle} aria-labelledby="specs-h">
-        {sectionHead(
-          "Specializations",
-          specs.length + " defined · " + activeSpecs.length + " offered to doctors and patients",
-        )}
-        <div className="overflow-x-auto px-2 pb-6">
-          <Table style={tableStyle}>
-            <THead>
-              <TR style={{ borderBottom: `1px solid ${hair}` }}>
-                <TH data-wf="i-4-0-0" scope="col" className={thCls} style={{ color: muted }}>
-                  Name
-                </TH>
-                <TH data-wf="i-4-0-1" scope="col" className={thCls} style={{ color: muted }}>
-                  Doctors assigned
-                </TH>
-                <TH data-wf="i-4-0-2" scope="col" className={thCls} style={{ color: muted }}>
-                  Used in mappings
-                </TH>
-                <TH data-wf="i-4-0-3" scope="col" className={thCls} style={{ color: muted }}>
-                  Active
-                </TH>
-              </TR>
-            </THead>
-            <TBody>
-              {specs.map((s) => (
-                <TR
-                  key={s.id}
-                  className={s.fresh ? "atrium-rise" : ""}
-                  style={{ borderBottom: `1px solid ${hair}` }}
-                >
-                  <TD className={tdCls}>
-                    <span className="font-medium" style={{ color: ink }}>
-                      {s.name}
-                    </span>
-                    <span className="ml-2 text-xs" style={{ color: muted }}>
-                      {s.id}
-                    </span>
-                  </TD>
-                  <TD className={tdCls} style={{ color: s.doctors ? ink : muted }}>
-                    {s.doctors}
-                  </TD>
-                  <TD className={tdCls} style={{ color: s.mappings ? ink : muted }}>
-                    {s.mappings}
-                  </TD>
-                  <TD className={tdCls}>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <button
-                        type="button"
-                        aria-pressed={s.is_active}
-                        onClick={() => {
-                          setSpecs((prev) =>
-                            prev.map((x) =>
-                              x.id === s.id ? { ...x, is_active: !x.is_active } : x,
-                            ),
-                          );
-                          pushAudit(
-                            s.is_active ? "specialization.hide" : "specialization.show",
-                            "specialization",
-                            s.id,
-                          );
-                        }}
-                        className={
-                          "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium " +
-                          btnFocus
-                        }
-                        style={{
-                          backgroundColor: s.is_active ? alpha(brass, 0.2) : alpha(ink, 0.06),
-                          color: s.is_active ? accentText : muted,
-                          ...ringVars,
-                        }}
-                      >
-                        {s.is_active ? (
-                          <Icons.Check className="h-3.5 w-3.5" aria-hidden="true" />
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+        <section
+          data-wf="b-4-0"
+          className="lg:col-span-7"
+          style={panelStyle}
+          aria-labelledby="specs-h"
+        >
+          {sectionHead(
+            "Specializations",
+            specsLoading
+              ? "loading…"
+              : specsError
+                ? ""
+                : specs.length +
+                  " defined · " +
+                  activeSpecs.length +
+                  " offered to doctors and patients",
+          )}
+          {specsError === "forbidden" ? (
+            <div className="px-6 pb-6">
+              <Empty
+                title="not available for your role"
+                description="this section is for clinic administrators only."
+              />
+            </div>
+          ) : specsError ? (
+            <div className="px-6 pb-6">
+              <Empty
+                title="could not load specializations"
+                description="please try again in a moment."
+              />
+            </div>
+          ) : specsLoading ? (
+            <div className="px-6 pb-6 text-sm" style={{ color: muted }} role="status">
+              loading specializations…
+            </div>
+          ) : specs.length === 0 ? (
+            <div className="px-6 pb-6">
+              <Empty
+                title="no specializations yet"
+                description="add the first one so doctors and the mapping table have something to reference."
+              />
+            </div>
+          ) : (
+            <div className="overflow-x-auto px-2 pb-6">
+              <Table style={tableStyle}>
+                <THead>
+                  <TR style={{ borderBottom: `1px solid ${hair}` }}>
+                    <TH data-wf="i-4-0-0" scope="col" className={thCls} style={{ color: muted }}>
+                      Name
+                    </TH>
+                    <TH data-wf="i-4-0-3" scope="col" className={thCls} style={{ color: muted }}>
+                      Active
+                    </TH>
+                    <TH data-wf="i-4-0-4" scope="col" className={thCls} style={{ color: muted }}>
+                      Actions
+                    </TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {specs.map((s) => (
+                    <TR
+                      key={s.id}
+                      className={s.fresh ? "atrium-rise" : ""}
+                      style={{ borderBottom: `1px solid ${hair}` }}
+                    >
+                      <TD className={tdCls}>
+                        {editingSpecId === s.id ? (
+                          <div>
+                            <Label htmlFor={"spec-rename-" + s.id} className="sr-only">
+                              Specialization name
+                            </Label>
+                            <Input
+                              id={"spec-rename-" + s.id}
+                              value={editingSpecName}
+                              onChange={(e) => setEditingSpecName(e.target.value)}
+                              className={inputCls}
+                              style={inputStyle}
+                              aria-invalid={editSpecError ? "true" : undefined}
+                              aria-describedby={
+                                editSpecError ? "spec-rename-err-" + s.id : undefined
+                              }
+                            />
+                            {editSpecError ? (
+                              <p
+                                id={"spec-rename-err-" + s.id}
+                                className="mt-2 text-xs"
+                                style={{ color: clay }}
+                              >
+                                {editSpecError}
+                              </p>
+                            ) : null}
+                          </div>
                         ) : (
-                          <Icons.X className="h-3.5 w-3.5" aria-hidden="true" />
+                          <>
+                            <span className="font-medium" style={{ color: ink }}>
+                              {s.name}
+                            </span>
+                            <span className="ml-2 text-xs" style={{ color: muted }}>
+                              {s.id}
+                            </span>
+                          </>
                         )}
-                        {s.is_active ? "Active" : "Hidden"}
-                        <span className="sr-only">
-                          — {s.name}, select to {s.is_active ? "hide" : "show"}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeSpec(s)}
-                        className={
-                          "rounded-full px-2 py-1 text-xs underline-offset-4 hover:underline " +
-                          btnFocus
-                        }
-                        style={{ color: muted, ...ringVars }}
-                      >
-                        Remove<span className="sr-only"> {s.name}</span>
-                      </button>
-                    </div>
-                  </TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
-        </div>
-      </section>
+                      </TD>
+                      <TD className={tdCls}>{pill(s.is_active ? "active" : "deactivated")}</TD>
+                      <TD className={tdCls}>
+                        <div className="flex flex-wrap items-center gap-3">
+                          {editingSpecId === s.id ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => saveRenameSpec(s)}
+                                disabled={specRowBusyId === s.id}
+                                className={
+                                  "rounded-full px-3 py-1.5 text-xs font-medium " + btnFocus
+                                }
+                                style={primaryBtn}
+                              >
+                                Save<span className="sr-only"> {s.name}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelRenameSpec}
+                                className={
+                                  "rounded-full px-2 py-1 text-xs underline-offset-4 hover:underline " +
+                                  btnFocus
+                                }
+                                style={{ color: muted, ...ringVars }}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => startRenameSpec(s)}
+                                className={
+                                  "rounded-full px-2 py-1 text-xs underline-offset-4 hover:underline " +
+                                  btnFocus
+                                }
+                                style={{ color: ink, ...ringVars }}
+                              >
+                                Rename<span className="sr-only"> {s.name}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeSpec(s)}
+                                disabled={specRowBusyId === s.id}
+                                className={
+                                  "rounded-full px-2 py-1 text-xs underline-offset-4 hover:underline " +
+                                  btnFocus
+                                }
+                                style={{ color: muted, ...ringVars }}
+                              >
+                                Remove<span className="sr-only"> {s.name}</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+            </div>
+          )}
+        </section>
 
-      <div className="space-y-4">
+        <section
+          data-wf="b-4-1"
+          className="lg:col-span-5"
+          style={archStyle}
+          aria-labelledby="new-spec-h"
+        >
+          <form
+            id="new-spec-form"
+            onSubmit={submitSpecialization}
+            className="px-6 pb-6 pt-12 sm:px-8"
+          >
+            <div className="text-center">
+              <span
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full"
+                style={{ backgroundColor: alpha(brass, 0.22), color: accentText }}
+              >
+                <Icons.Plus className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <h2
+                id="new-spec-h"
+                className="mt-4 text-[26px] leading-tight"
+                style={{ fontFamily: brand.fontHeading, fontStyle: "italic", color: ink }}
+              >
+                Add a specialization
+              </h2>
+              <p
+                className="mx-auto mt-2 max-w-[42ch] text-[13px] leading-relaxed"
+                style={{ color: muted }}
+              >
+                added specializations are offered immediately wherever a specialization is chosen,
+                for doctor profiles and the mapping table alike.
+              </p>
+            </div>
+
+            <div className="mt-8 space-y-5">
+              <div>
+                <Label
+                  htmlFor="spec-name"
+                  className="mb-2 block text-[13px] font-medium"
+                  style={{ color: ink }}
+                >
+                  Specialization name
+                </Label>
+                <Input
+                  data-wf="i-4-1-0"
+                  id="spec-name"
+                  value={specForm.name}
+                  onChange={(e) => setSpecForm({ name: e.target.value })}
+                  placeholder="Rheumatology"
+                  className={inputCls}
+                  style={inputStyle}
+                  aria-invalid={specFormError ? "true" : undefined}
+                  aria-describedby={specFormError ? "spec-name-err" : undefined}
+                />
+                {specFormError ? (
+                  <p id="spec-name-err" className="mt-2 text-xs" style={{ color: clay }}>
+                    {specFormError}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      <div className="md:col-span-4">
         <Button
           data-wf="b-5-0"
-          type="button"
-          onClick={addSpecialization}
-          disabled={!specQueue.length}
-          aria-describedby="add-spec-hint"
+          type="submit"
+          form="new-spec-form"
+          disabled={specSaving}
           className={
-            "inline-flex items-center gap-2 px-6 py-3.5 text-sm font-medium " +
+            "inline-flex items-center gap-2 px-6 py-3.5 text-sm font-medium transition-opacity " +
             btnFocus +
-            (specQueue.length ? " hover:opacity-90" : " opacity-45")
+            (specSaving ? " opacity-70" : " hover:opacity-90")
           }
           style={primaryBtn}
         >
           <Icons.Plus className="h-4 w-4" aria-hidden="true" />
-          Add specialization
+          {specSaving ? "adding…" : "Add specialization"}
         </Button>
-        <p
-          id="add-spec-hint"
-          className="max-w-[60ch] text-[13px] leading-relaxed"
-          style={{ color: muted, fontVariantNumeric: "tabular-nums" }}
-        >
-          {specQueue.length
-            ? "next in line: " +
-              specQueue[0] +
-              " · " +
-              specQueue.length +
-              (specQueue.length === 1 ? " specialization" : " specializations") +
-              " waiting from the clinical lead."
-            : "nothing is waiting — the clinical lead sends the next specialization to add."}
-        </p>
       </div>
     </div>
   );
 
   /* ---------------- mappings ---------------- */
 
-  const addMapping = () => {
-    if (!mapQueue.length) return;
-    const next = mapQueue[0];
-    if (mappings.some((m) => m.term.toLowerCase() === next.term.toLowerCase())) {
-      setMapQueue((q) => q.slice(1));
-      setMapNotice({
-        tone: "warn",
-        text:
-          "“" +
-          next.term +
-          "” is already mapped, so nothing was added. it has been taken off the waiting list.",
-      });
+  const submitMapping = async (e) => {
+    e.preventDefault();
+    const term = mapForm.term.trim();
+    const errs = {};
+    if (!term) errs.term = "a disease or symptom term is needed.";
+    if (!mapForm.specialization_ids.length)
+      errs.specialization_ids = "choose at least one specialization.";
+    setMapFormErrors(errs);
+    if (Object.keys(errs).length) {
+      setMapNotice(null);
       return;
     }
-    const known = next.specs.filter((n) => specs.some((s) => s.name === n && s.is_active));
-    if (!known.length) {
+    setMapSaving(true);
+    setMapNotice(null);
+    try {
+      const created = await apiFetch("/admin/mappings", {
+        method: "POST",
+        body: JSON.stringify({ term, specialization_ids: mapForm.specialization_ids }),
+      });
+      setMappings((prev) => [{ ...created, fresh: true }, ...prev]);
+      pushAudit("mapping.create", "disease_mapping", created.id);
+      setMapForm({ term: "", specialization_ids: [] });
       setMapNotice({
-        tone: "warn",
+        tone: "good",
         text:
           "“" +
-          next.term +
-          "” cannot be saved yet — " +
-          next.specs.join(" and ") +
-          " is not on the specialization list. add it under Specializations first, then this entry will go through.",
+          created.term +
+          "” now resolves to " +
+          created.specialization_ids.map(specName).join(" and ") +
+          ". patient search uses it from the next lookup.",
       });
-      return;
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setMapFormErrors({
+          term:
+            typeof err.detail === "string"
+              ? err.detail
+              : "a mapping entry for that disease or symptom already exists.",
+        });
+      } else if (err instanceof ApiError && err.status === 404) {
+        setMapFormErrors({
+          specialization_ids:
+            typeof err.detail === "string" ? err.detail : "choose a specialization that exists.",
+        });
+      } else {
+        setMapNotice({
+          tone: "warn",
+          text: "something went wrong adding that mapping entry — please try again.",
+        });
+      }
+    } finally {
+      setMapSaving(false);
     }
-    const id = "MAP-0" + (15 + mappings.length);
-    setMappings((prev) => [
-      { id, term: next.term, specs: known, updated: "16 Nov 2026", fresh: true },
-      ...prev,
-    ]);
-    setSpecs((prev) =>
-      prev.map((s) => (known.includes(s.name) ? { ...s, mappings: s.mappings + 1 } : s)),
-    );
-    pushAudit("mapping.create", "disease_mapping", id);
-    setMapQueue((q) => q.slice(1));
-    setMapNotice({
-      tone: "good",
-      text:
-        "“" +
-        next.term +
-        "” now resolves to " +
-        known.join(" and ") +
-        " — one of the unmapped searches the clinical lead has reviewed. patient search uses it from the next lookup, by static table only.",
-    });
+  };
+
+  const startEditMapping = (m) => {
+    setMapNotice(null);
+    setEditingMapId(m.id);
+    setEditingMap({ term: m.term, specialization_ids: [...m.specialization_ids] });
+    setEditMapErrors({});
+  };
+
+  const cancelEditMapping = () => {
+    setEditingMapId(null);
+    setEditingMap({ term: "", specialization_ids: [] });
+    setEditMapErrors({});
+  };
+
+  const saveEditMapping = async (m) => {
+    const term = editingMap.term.trim();
+    const errs = {};
+    if (!term) errs.term = "a disease or symptom term is needed.";
+    if (!editingMap.specialization_ids.length)
+      errs.specialization_ids = "choose at least one specialization.";
+    setEditMapErrors(errs);
+    if (Object.keys(errs).length) return;
+    setMapRowBusyId(m.id);
+    try {
+      const updated = await apiFetch("/admin/mappings", {
+        method: "PUT",
+        body: JSON.stringify({
+          id: m.id,
+          term,
+          specialization_ids: editingMap.specialization_ids,
+        }),
+      });
+      setMappings((prev) => prev.map((x) => (x.id === m.id ? { ...x, ...updated } : x)));
+      pushAudit("mapping.update", "disease_mapping", m.id);
+      setEditingMapId(null);
+      setEditingMap({ term: "", specialization_ids: [] });
+      setEditMapErrors({});
+      setMapNotice({
+        tone: "good",
+        text:
+          "“" +
+          updated.term +
+          "” now resolves to " +
+          updated.specialization_ids.map(specName).join(" and ") +
+          ". patient search uses it immediately.",
+      });
+    } catch (err) {
+      if (
+        err instanceof ApiError &&
+        err.status === 404 &&
+        err.detail === "Mapping entry not found"
+      ) {
+        setEditMapErrors({ term: "that mapping entry no longer exists." });
+      } else if (err instanceof ApiError && err.status === 404) {
+        setEditMapErrors({
+          specialization_ids:
+            typeof err.detail === "string" ? err.detail : "choose a specialization that exists.",
+        });
+      } else if (err instanceof ApiError && err.status === 409) {
+        setEditMapErrors({
+          term:
+            typeof err.detail === "string"
+              ? err.detail
+              : "a mapping entry for that disease or symptom already exists.",
+        });
+      } else {
+        setEditMapErrors({ term: "something went wrong saving that mapping — please try again." });
+      }
+    } finally {
+      setMapRowBusyId(null);
+    }
+  };
+
+  const removeMapping = async (m) => {
+    setMapNotice(null);
+    setMapRowBusyId(m.id);
+    try {
+      await apiFetch(`/admin/mappings?id=${encodeURIComponent(m.id)}`, { method: "DELETE" });
+      setMappings((prev) => prev.filter((x) => x.id !== m.id));
+      pushAudit("mapping.delete", "disease_mapping", m.id);
+      setMapNotice({
+        tone: "good",
+        text: "“" + m.term + "” removed. patient search no longer resolves it to a specialization.",
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setMappings((prev) => prev.filter((x) => x.id !== m.id));
+      } else {
+        setMapNotice({
+          tone: "warn",
+          text: "could not remove “" + m.term + "” — please try again.",
+        });
+      }
+    } finally {
+      setMapRowBusyId(null);
+    }
   };
 
   const renderMappings = () => (
     <div className="space-y-8">
       {mapNotice ? noticeBar(mapNotice.tone, mapNotice.text, () => setMapNotice(null)) : null}
 
-      <section data-wf="b-4-1" style={panelStyle} aria-labelledby="map-h">
-        {sectionHead(
-          "Disease / symptom mappings",
-          mappings.length + " entries · resolved by static lookup, never by a model",
-          <span
-            className="rounded-full px-4 py-2 text-xs"
-            style={{ backgroundColor: alpha(brass, 0.16), color: accentText }}
-          >
-            owned by admin
-          </span>,
-        )}
-        <div className="overflow-x-auto px-2 pb-6">
-          <Table style={tableStyle}>
-            <THead>
-              <TR style={{ borderBottom: `1px solid ${hair}` }}>
-                <TH data-wf="i-4-1-0" scope="col" className={thCls} style={{ color: muted }}>
-                  Term
-                </TH>
-                <TH data-wf="i-4-1-1" scope="col" className={thCls} style={{ color: muted }}>
-                  Mapped specializations
-                </TH>
-                <TH data-wf="i-4-1-2" scope="col" className={thCls} style={{ color: muted }}>
-                  Updated
-                </TH>
-              </TR>
-            </THead>
-            <TBody>
-              {mappings.map((m) => (
-                <TR
-                  key={m.id}
-                  className={m.fresh ? "atrium-rise" : ""}
-                  style={{ borderBottom: `1px solid ${hair}` }}
-                >
-                  <TD className={tdCls}>
-                    <span className="font-medium" style={{ color: ink }}>
-                      {m.term}
-                    </span>
-                    <span className="ml-2 text-xs" style={{ color: muted }}>
-                      {m.id}
-                    </span>
-                  </TD>
-                  <TD className={tdCls}>
-                    <ul className="flex flex-wrap gap-2">
-                      {m.specs.map((s) => (
-                        <li
-                          key={s}
-                          className="rounded-full px-3 py-1 text-xs"
-                          style={{ backgroundColor: inset, color: ink }}
-                        >
-                          {s}
-                        </li>
-                      ))}
-                    </ul>
-                  </TD>
-                  <TD className={tdCls} style={{ color: muted }}>
-                    {m.updated}
-                  </TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
-        </div>
-      </section>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+        <section
+          data-wf="b-4-1"
+          className="lg:col-span-7"
+          style={panelStyle}
+          aria-labelledby="map-h"
+        >
+          {sectionHead(
+            "Disease / symptom mappings",
+            mappingsLoading
+              ? "loading…"
+              : mappingsError
+                ? ""
+                : mappings.length + " entries · resolved by static lookup, never by a model",
+          )}
+          {mappingsError === "forbidden" ? (
+            <div className="px-6 pb-6">
+              <Empty
+                title="not available for your role"
+                description="this section is for clinic administrators only."
+              />
+            </div>
+          ) : mappingsError ? (
+            <div className="px-6 pb-6">
+              <Empty title="could not load mappings" description="please try again in a moment." />
+            </div>
+          ) : mappingsLoading ? (
+            <div className="px-6 pb-6 text-sm" style={{ color: muted }} role="status">
+              loading mappings…
+            </div>
+          ) : mappings.length === 0 ? (
+            <div className="px-6 pb-6">
+              <Empty
+                title="no mappings yet"
+                description="add the first disease or symptom mapping using the form."
+              />
+            </div>
+          ) : (
+            <div className="overflow-x-auto px-2 pb-6">
+              <Table style={tableStyle}>
+                <THead>
+                  <TR style={{ borderBottom: `1px solid ${hair}` }}>
+                    <TH data-wf="i-4-1-0" scope="col" className={thCls} style={{ color: muted }}>
+                      Term
+                    </TH>
+                    <TH data-wf="i-4-1-1" scope="col" className={thCls} style={{ color: muted }}>
+                      Mapped specializations
+                    </TH>
+                    <TH data-wf="i-4-1-2" scope="col" className={thCls} style={{ color: muted }}>
+                      Actions
+                    </TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {mappings.map((m) => (
+                    <TR
+                      key={m.id}
+                      className={m.fresh ? "atrium-rise" : ""}
+                      style={{ borderBottom: `1px solid ${hair}` }}
+                    >
+                      <TD className={tdCls}>
+                        {editingMapId === m.id ? (
+                          <div>
+                            <Label htmlFor={"map-term-" + m.id} className="sr-only">
+                              Term
+                            </Label>
+                            <Input
+                              id={"map-term-" + m.id}
+                              value={editingMap.term}
+                              onChange={(e) =>
+                                setEditingMap({ ...editingMap, term: e.target.value })
+                              }
+                              className={inputCls}
+                              style={inputStyle}
+                              aria-invalid={editMapErrors.term ? "true" : undefined}
+                              aria-describedby={
+                                editMapErrors.term ? "map-term-err-" + m.id : undefined
+                              }
+                            />
+                            {editMapErrors.term ? (
+                              <p
+                                id={"map-term-err-" + m.id}
+                                className="mt-2 text-xs"
+                                style={{ color: clay }}
+                              >
+                                {editMapErrors.term}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <>
+                            <span className="font-medium" style={{ color: ink }}>
+                              {m.term}
+                            </span>
+                            <span className="ml-2 text-xs" style={{ color: muted }}>
+                              {m.id}
+                            </span>
+                          </>
+                        )}
+                      </TD>
+                      <TD className={tdCls}>
+                        {editingMapId === m.id ? (
+                          <fieldset>
+                            <legend className="sr-only">Specializations</legend>
+                            <div className="flex flex-wrap gap-3">
+                              {activeSpecs.map((s) => (
+                                <label
+                                  key={s.id}
+                                  className="inline-flex items-center gap-2 text-xs"
+                                  style={{ color: ink }}
+                                >
+                                  <Checkbox
+                                    checked={editingMap.specialization_ids.includes(s.id)}
+                                    onChange={(e) =>
+                                      setEditingMap((prev) => ({
+                                        ...prev,
+                                        specialization_ids: e.target.checked
+                                          ? [...prev.specialization_ids, s.id]
+                                          : prev.specialization_ids.filter((x) => x !== s.id),
+                                      }))
+                                    }
+                                  />
+                                  {s.name}
+                                </label>
+                              ))}
+                            </div>
+                            {editMapErrors.specialization_ids ? (
+                              <p className="mt-2 text-xs" style={{ color: clay }}>
+                                {editMapErrors.specialization_ids}
+                              </p>
+                            ) : null}
+                          </fieldset>
+                        ) : (
+                          <ul className="flex flex-wrap gap-2">
+                            {m.specialization_ids.map((id) => (
+                              <li
+                                key={id}
+                                className="rounded-full px-3 py-1 text-xs"
+                                style={{ backgroundColor: inset, color: ink }}
+                              >
+                                {specName(id)}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </TD>
+                      <TD className={tdCls}>
+                        <div className="flex flex-wrap items-center gap-3">
+                          {editingMapId === m.id ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => saveEditMapping(m)}
+                                disabled={mapRowBusyId === m.id}
+                                className={
+                                  "rounded-full px-3 py-1.5 text-xs font-medium " + btnFocus
+                                }
+                                style={primaryBtn}
+                              >
+                                Save<span className="sr-only"> {m.term}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelEditMapping}
+                                className={
+                                  "rounded-full px-2 py-1 text-xs underline-offset-4 hover:underline " +
+                                  btnFocus
+                                }
+                                style={{ color: muted, ...ringVars }}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => startEditMapping(m)}
+                                className={
+                                  "rounded-full px-2 py-1 text-xs underline-offset-4 hover:underline " +
+                                  btnFocus
+                                }
+                                style={{ color: ink, ...ringVars }}
+                              >
+                                Edit<span className="sr-only"> {m.term}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeMapping(m)}
+                                disabled={mapRowBusyId === m.id}
+                                className={
+                                  "rounded-full px-2 py-1 text-xs underline-offset-4 hover:underline " +
+                                  btnFocus
+                                }
+                                style={{ color: muted, ...ringVars }}
+                              >
+                                Remove<span className="sr-only"> {m.term}</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+            </div>
+          )}
+        </section>
 
-      <div className="space-y-4">
+        <section
+          data-wf="b-4-2"
+          className="lg:col-span-5"
+          style={archStyle}
+          aria-labelledby="new-map-h"
+        >
+          <form id="new-map-form" onSubmit={submitMapping} className="px-6 pb-6 pt-12 sm:px-8">
+            <div className="text-center">
+              <span
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full"
+                style={{ backgroundColor: alpha(brass, 0.22), color: accentText }}
+              >
+                <Icons.Plus className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <h2
+                id="new-map-h"
+                className="mt-4 text-[26px] leading-tight"
+                style={{ fontFamily: brand.fontHeading, fontStyle: "italic", color: ink }}
+              >
+                Add a mapping entry
+              </h2>
+              <p
+                className="mx-auto mt-2 max-w-[42ch] text-[13px] leading-relaxed"
+                style={{ color: muted }}
+              >
+                linked specializations are used by patient search as soon as this is saved.
+              </p>
+            </div>
+
+            <div className="mt-8 space-y-5">
+              <div>
+                <Label
+                  htmlFor="map-term"
+                  className="mb-2 block text-[13px] font-medium"
+                  style={{ color: ink }}
+                >
+                  Disease or symptom term
+                </Label>
+                <Input
+                  data-wf="i-4-2-0"
+                  id="map-term"
+                  value={mapForm.term}
+                  onChange={(e) => setMapForm({ ...mapForm, term: e.target.value })}
+                  placeholder="persistent cough"
+                  className={inputCls}
+                  style={inputStyle}
+                  aria-invalid={mapFormErrors.term ? "true" : undefined}
+                  aria-describedby={mapFormErrors.term ? "map-term-err" : undefined}
+                />
+                {mapFormErrors.term ? (
+                  <p id="map-term-err" className="mt-2 text-xs" style={{ color: clay }}>
+                    {mapFormErrors.term}
+                  </p>
+                ) : null}
+              </div>
+
+              <fieldset>
+                <legend className="mb-2 block text-[13px] font-medium" style={{ color: ink }}>
+                  Specializations
+                </legend>
+                <div className="flex flex-wrap gap-3">
+                  {activeSpecs.map((s) => (
+                    <label
+                      key={s.id}
+                      className="inline-flex items-center gap-2 text-xs"
+                      style={{ color: ink }}
+                    >
+                      <Checkbox
+                        checked={mapForm.specialization_ids.includes(s.id)}
+                        onChange={(e) =>
+                          setMapForm((prev) => ({
+                            ...prev,
+                            specialization_ids: e.target.checked
+                              ? [...prev.specialization_ids, s.id]
+                              : prev.specialization_ids.filter((x) => x !== s.id),
+                          }))
+                        }
+                      />
+                      {s.name}
+                    </label>
+                  ))}
+                </div>
+                {mapFormErrors.specialization_ids ? (
+                  <p className="mt-2 text-xs" style={{ color: clay }}>
+                    {mapFormErrors.specialization_ids}
+                  </p>
+                ) : null}
+              </fieldset>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      <div className="md:col-span-4">
         <Button
           data-wf="b-5-1"
-          type="button"
-          onClick={addMapping}
-          disabled={!mapQueue.length}
-          aria-describedby="add-map-hint"
+          type="submit"
+          form="new-map-form"
+          disabled={mapSaving}
           className={
-            "inline-flex items-center gap-2 px-6 py-3.5 text-sm font-medium " +
+            "inline-flex items-center gap-2 px-6 py-3.5 text-sm font-medium transition-opacity " +
             btnFocus +
-            (mapQueue.length ? " hover:opacity-90" : " opacity-45")
+            (mapSaving ? " opacity-70" : " hover:opacity-90")
           }
           style={primaryBtn}
         >
           <Icons.Plus className="h-4 w-4" aria-hidden="true" />
-          Add mapping entry
+          {mapSaving ? "adding…" : "Add mapping entry"}
         </Button>
-        <p
-          id="add-map-hint"
-          className="max-w-[66ch] text-[13px] leading-relaxed"
-          style={{ color: muted, fontVariantNumeric: "tabular-nums" }}
-        >
-          {mapQueue.length
-            ? "next in line: “" +
-              mapQueue[0].term +
-              "” → " +
-              mapQueue[0].specs.join(" and ") +
-              " · " +
-              mapQueue.length +
-              " reviewed from last week's unmapped searches."
-            : "every reviewed search term is mapped — new ones appear here once the clinical lead has looked at them."}
-        </p>
       </div>
     </div>
   );
@@ -1975,7 +2587,7 @@ export default function Screen() {
                 >
                   {doctors.map((d) => (
                     <option key={d.id} value={d.id}>
-                      {d.full_name} · {d.specialization}
+                      {d.full_name} · {specName(d.specialization_id)}
                     </option>
                   ))}
                 </Select>

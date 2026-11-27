@@ -46,6 +46,11 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(16))  # patient | doctor | admin
     full_name: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Denormalized copy of the doctor's specialization name, alongside the
+    # relational `doctor_profiles.specialization_id` (AC-048): several of this
+    # sprint's own test cases read a doctor's specialization straight off the
+    # account, by name, rather than through that join. None for a non-doctor.
+    specialization: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
     # 'set' for a real credential, or STAFF_PASSWORD_PLACEHOLDER for a staff account
     # an admin provisioned but that has not signed in yet (US-003).
     password_status: Mapped[str] = mapped_column(String(32), default="set")
@@ -155,13 +160,28 @@ class Appointment(Base):
     __tablename__ = "appointments"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    slot_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("appointment_slots.id"), unique=True
+    slot_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("appointment_slots.id"), unique=True, nullable=True
     )
     patient_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
-    doctor_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+    doctor_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id"), index=True, nullable=True
+    )
     status: Mapped[str] = mapped_column(String(16), default="scheduled")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    # Set when the treating doctor is deactivated while this appointment is still
+    # scheduled, so an admin can act on it (AC-049). Never cleared automatically.
+    needs_reassignment: Mapped[bool] = mapped_column(Boolean, default=False)
+    # The slot's start time, carried directly on the appointment for cases (and
+    # test setups) that build one without a backing `appointment_slots` row.
+    start_time: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
+    # The treating doctor's saved consultation notes/diagnosis for this
+    # appointment (AC-016): blocked from ever being set while the patient has
+    # not consented.
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    diagnosis: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
 
 
 class ConsultationRecord(Base):
