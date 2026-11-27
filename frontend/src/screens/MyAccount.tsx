@@ -7,6 +7,7 @@ import { Icons } from "@/lib/icons";
 import { brand } from "@/lib/brand";
 import { useNavigate } from "@/lib/navigate";
 import { ApiError, apiFetch } from "@/lib/api";
+import { ConsentDialog, useConsentGate } from "@/lib/consent";
 
 const { Button, Input, Textarea, Label, Select, Badge, Avatar, Separator } = UI;
 
@@ -85,6 +86,7 @@ export default function Screen() {
   const [errors, setErrors] = React.useState({});
   const [status, setStatus] = React.useState("idle"); // idle | saving | saved | taken | error
   const [lastSaved, setLastSaved] = React.useState(null);
+  const gate = useConsentGate(); // AC-016 / AC-017: POST /me/consent, audited server-side
 
   React.useEffect(() => {
     let cancelled = false;
@@ -155,6 +157,18 @@ export default function Screen() {
       if (first && first.focus) first.focus();
       return;
     }
+    // AC-016: a patient cannot save until consent is given; doctors and admins
+    // have no health-data consent of their own to give.
+    if (account.role === "patient") {
+      gate.requireConsent(() => {
+        void saveProfile();
+      });
+      return;
+    }
+    await saveProfile();
+  }
+
+  async function saveProfile() {
     setStatus("saving");
     try {
       const updated = await apiFetch("/me/profile", {
@@ -290,6 +304,7 @@ export default function Screen() {
   return (
     <div className="atr w-full min-h-full" style={{ fontFamily: brand.fontBody, color: ink }}>
       <style>{css}</style>
+      <ConsentDialog gate={gate} />
 
       <div className="mx-auto w-full max-w-[1120px] px-6 sm:px-8 pt-10 pb-20">
         {/* ── Row 1 ── */}

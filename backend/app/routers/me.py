@@ -11,8 +11,8 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.errors import EMAIL_ALREADY_IN_USE
 from app.models import User
-from app.schemas import ProfileOut, ProfileUpdateRequest, StubResponse
-from app.services import update_own_profile
+from app.schemas import ConsentOut, ConsentRequest, ProfileOut, ProfileUpdateRequest, StubResponse
+from app.services import record_consent, update_own_profile
 
 router = APIRouter(tags=["me"])
 
@@ -51,9 +51,16 @@ async def update_profile(
     return _profile_out(updated)
 
 
-@router.post("/me/consent", response_model=StubResponse)
-async def give_consent() -> StubResponse:
-    return StubResponse(endpoint="POST /me/consent")
+@router.post("/me/consent", response_model=ConsentOut, status_code=201)
+async def give_consent(
+    payload: ConsentRequest,
+    user: User = _current_user,
+    db: DBSession = _db,
+) -> ConsentOut:
+    # `accepted` being `true` is already validated at the boundary (Literal[True]);
+    # calling this endpoint as the signed-in patient is itself the acceptance (AC-016).
+    consent = record_consent(db, user)
+    return ConsentOut(consented=consent.consented, consented_at=consent.consented_at)
 
 
 @router.put("/me/availability", response_model=StubResponse)

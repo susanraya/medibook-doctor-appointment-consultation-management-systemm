@@ -4,6 +4,7 @@ One pair per entity in the approved data model, plus the placeholder every
 generated route returns until it has been implemented.
 """
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
@@ -100,6 +101,22 @@ class ProfileUpdateRequest(BaseModel):
     full_name: str = Field(min_length=1, max_length=255)
     email: EmailStr
     phone: str = Field(min_length=6, max_length=32, pattern=r"^[0-9+\-() ]+$")
+
+
+class ConsentRequest(BaseModel):
+    """POST /me/consent's body. Calling this endpoint as the signed-in patient is
+    itself the explicit acceptance (AC-016); `accepted` must be sent as `true` so
+    a client cannot record consent by posting a decline."""
+
+    accepted: Literal[True]
+
+
+class ConsentOut(BaseModel):
+    """POST /me/consent's response: the recorded consent with its audit
+    timestamp (AC-017)."""
+
+    consented: bool
+    consented_at: datetime
 
 
 class StubResponse(BaseModel):

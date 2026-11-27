@@ -10,3 +10,8 @@ EMAIL_ALREADY_IN_USE = {
     "status_code": 409,
     "detail": "That email is already in use",
 }
+
+CONSENT_REQUIRED = {
+    "status_code": 403,
+    "detail": "Give consent to store and process your health data before you continue",
+}

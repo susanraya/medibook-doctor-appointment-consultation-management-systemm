@@ -6,6 +6,7 @@ import * as UI from "@/lib/ui";
 import { Icons } from "@/lib/icons";
 import { brand } from "@/lib/brand";
 import { useNavigate } from "@/lib/navigate";
+import { useConsentGate } from "@/lib/consent";
 
 const { Button, Input, Label, Checkbox, Badge, Avatar, Empty } = UI;
 
@@ -264,8 +265,8 @@ export default function Screen() {
   const [modal, setModal] = React.useState(null); // { doctorId, day, slot }
   const [bookingState, setBookingState] = React.useState("idle"); // idle | booking | failed | confirmed
   const [consentChecked, setConsentChecked] = React.useState(false);
-  const [consentError, setConsentError] = React.useState("");
-  const [consent, setConsent] = React.useState({ consented: false, consented_at: null }); // patient_consents
+  const [needsConsentNote, setNeedsConsentNote] = React.useState(false);
+  const gate = useConsentGate(); // AC-016 / AC-017: POST /me/consent, audited server-side
 
   const timers = React.useRef([]);
   const panelRef = React.useRef(null);
@@ -364,8 +365,8 @@ export default function Screen() {
     triggerRef.current = ev && ev.currentTarget ? ev.currentTarget : null;
     setModal({ doctorId: doctor.id, day, slot });
     setBookingState("idle");
-    setConsentError("");
-    setConsentChecked(consent.consented);
+    setConsentChecked(gate.hasConsented);
+    setNeedsConsentNote(false);
   };
 
   const closeModal = () => {
@@ -379,13 +380,7 @@ export default function Screen() {
     }
   };
 
-  const confirmBooking = () => {
-    if (!modal) return;
-    if (!consent.consented && !consentChecked) {
-      setConsentError("we need your consent before the clinic can hold a slot for you.");
-      return;
-    }
-    setConsentError("");
+  const reserveSlot = () => {
     setBookingState("booking");
     later(() => {
       const doc = modal.doctorId;
@@ -401,9 +396,6 @@ export default function Screen() {
         setBookingState("failed");
         return;
       }
-      if (!consent.consented) {
-        setConsent({ consented: true, consented_at: "17 Nov 2026, 10:04" });
-      }
       if (target) {
         list[idx] = { ...target, status: "booked", mine: true };
         setSlots((prev) => ({ ...prev, [doc]: { ...prev[doc], [modal.day]: list } }));
@@ -411,6 +403,26 @@ export default function Screen() {
       setBookingState("confirmed");
       later(() => navigate("my-appointments"), 1500);
     }, 780);
+  };
+
+  const confirmBooking = () => {
+    if (!modal) return;
+    if (!gate.hasConsented && !consentChecked) {
+      setNeedsConsentNote(true);
+      return;
+    }
+    setNeedsConsentNote(false);
+    if (gate.hasConsented) {
+      reserveSlot();
+      return;
+    }
+    // AC-016: the patient cannot proceed until consent is recorded; AC-017: the
+    // API stores it with an audit timestamp.
+    setBookingState("booking");
+    gate
+      .giveConsentNow()
+      .then(() => reserveSlot())
+      .catch(() => setBookingState("idle"));
   };
 
   // ── modal keyboard behaviour ─────────────────────────────
@@ -1123,11 +1135,11 @@ export default function Screen() {
                     id="health-consent"
                     data-wf="b-8-0"
                     className="atr-focus mt-1"
-                    checked={consent.consented ? true : consentChecked}
-                    disabled={consent.consented || bookingState === "confirmed"}
+                    checked={gate.hasConsented ? true : consentChecked}
+                    disabled={gate.hasConsented || gate.submitting || bookingState === "confirmed"}
                     onChange={(e) => {
                       setConsentChecked(e.target.checked);
-                      if (e.target.checked) setConsentError("");
+                      if (e.target.checked) setNeedsConsentNote(false);
                     }}
                   />
                   <div>
@@ -1139,18 +1151,19 @@ export default function Screen() {
                       I consent to the clinic storing and processing my health data
                     </Label>
                     <p className="mt-1 text-[13px] leading-relaxed" style={{ color: muted }}>
-                      {consent.consented
-                        ? `consent recorded ${consent.consented_at} — thank you, we won't ask again.`
+                      {gate.hasConsented
+                        ? "consent recorded — thank you, we won't ask again."
                         : "kept for your consultation records only, and you can withdraw it from my account."}
                     </p>
-                    {consentError && (
+                    {(needsConsentNote || gate.error) && (
                       <p
                         className="atr-rise mt-2 flex items-center gap-2 text-[13px] font-semibold"
                         role="alert"
                         style={{ color: ink }}
                       >
                         <AlertCircle aria-hidden="true" className="h-4 w-4" />
-                        {consentError}
+                        {gate.error ||
+                          "we need your consent before the clinic can hold a slot for you."}
                       </p>
                     )}
                   </div>
