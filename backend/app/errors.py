@@ -25,3 +25,16 @@ DOCTOR_NOT_FOUND = {
     "status_code": 404,
     "detail": "Doctor not found",
 }
+
+SPECIALIZATION_NAME_TAKEN = {
+    "status_code": 409,
+    "detail": "A specialization with that name already exists",
+}
+
+SPECIALIZATION_IN_USE = {
+    "status_code": 409,
+    "detail": (
+        "This specialization is assigned to doctors or used in the mapping table "
+        "and cannot be deleted"
+    ),
+}

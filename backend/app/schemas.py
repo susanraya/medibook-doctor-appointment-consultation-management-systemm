@@ -108,6 +108,43 @@ class DoctorStatusOut(BaseModel):
     flagged_appointment_ids: list[str] = []
 
 
+class SpecializationCreateRequest(BaseModel):
+    """POST /admin/specializations's body: adds a new specialization (AC-050)."""
+
+    name: str = Field(min_length=1, max_length=255)
+
+
+class SpecializationUpdateRequest(BaseModel):
+    """PUT /admin/specializations's body: renames an existing specialization
+    (AC-050). `id` names which one, since the path carries none."""
+
+    id: str
+    name: str = Field(min_length=1, max_length=255)
+
+
+class SpecializationOut(BaseModel):
+    """One entry in the admin-defined specialization list (AC-050)."""
+
+    id: str
+    name: str
+    is_active: bool
+
+
+class SpecializationListOut(BaseModel):
+    """GET /admin/specializations's response: every specialization, reflecting
+    additions, renames and removals as soon as they happen (AC-050)."""
+
+    specializations: list[SpecializationOut]
+
+
+class SpecializationDeleteOut(BaseModel):
+    """DELETE /admin/specializations's response on success: confirms the
+    removal once no doctor or mapping depends on it (AC-051)."""
+
+    id: str
+    deleted: bool = True
+
+
 class FirstLoginPasswordRequest(BaseModel):
     """POST /auth/first-login-password's body."""
 

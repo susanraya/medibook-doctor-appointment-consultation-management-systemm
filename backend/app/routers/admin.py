@@ -8,14 +8,25 @@ Stubs only -- see `app.routers.auth` for why.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session as DBSession
 
+from app import services
 from app.database import get_db
 from app.deps import require_role
-from app.errors import EMAIL_ALREADY_IN_USE, SPECIALIZATION_NOT_FOUND
+from app.errors import (
+    EMAIL_ALREADY_IN_USE,
+    SPECIALIZATION_IN_USE,
+    SPECIALIZATION_NAME_TAKEN,
+    SPECIALIZATION_NOT_FOUND,
+)
 from app.models import User
 from app.schemas import (
     AdminCreateUserRequest,
     AdminUserListOut,
     AdminUserOut,
+    SpecializationCreateRequest,
+    SpecializationDeleteOut,
+    SpecializationListOut,
+    SpecializationOut,
+    SpecializationUpdateRequest,
     StubResponse,
     UserStatusOut,
     UserStatusUpdateRequest,
@@ -115,24 +126,73 @@ async def reassign_appointment(id: str) -> StubResponse:
     return StubResponse(endpoint=f"PUT /admin/appointments/{id}/reassign")
 
 
-@router.get("/specializations", response_model=StubResponse)
-async def list_specializations() -> StubResponse:
-    return StubResponse(endpoint="GET /admin/specializations")
+@router.get("/specializations", response_model=SpecializationListOut)
+async def list_specializations(
+    db: DBSession = _db, _admin: User = _require_admin
+) -> SpecializationListOut:
+    specializations = services.list_specializations(db)
+    return SpecializationListOut(
+        specializations=[
+            SpecializationOut(id=s.id, name=s.name, is_active=s.is_active) for s in specializations
+        ]
+    )
 
 
-@router.post("/specializations", response_model=StubResponse)
-async def create_specialization() -> StubResponse:
-    return StubResponse(endpoint="POST /admin/specializations")
+@router.post(
+    "/specializations",
+    response_model=SpecializationOut,
+    status_code=201,
+    responses={
+        SPECIALIZATION_NAME_TAKEN["status_code"]: {
+            "description": SPECIALIZATION_NAME_TAKEN["detail"]
+        },
+    },
+)
+async def create_specialization(
+    payload: SpecializationCreateRequest, db: DBSession = _db, _admin: User = _require_admin
+) -> SpecializationOut:
+    specialization = services.create_specialization(db, payload.name)
+    return SpecializationOut(
+        id=specialization.id, name=specialization.name, is_active=specialization.is_active
+    )
 
 
-@router.put("/specializations", response_model=StubResponse)
-async def update_specialization() -> StubResponse:
-    return StubResponse(endpoint="PUT /admin/specializations")
+@router.put(
+    "/specializations",
+    response_model=SpecializationOut,
+    responses={
+        SPECIALIZATION_NOT_FOUND["status_code"]: {
+            "description": SPECIALIZATION_NOT_FOUND["detail"]
+        },
+        SPECIALIZATION_NAME_TAKEN["status_code"]: {
+            "description": SPECIALIZATION_NAME_TAKEN["detail"]
+        },
+    },
+)
+async def update_specialization(
+    payload: SpecializationUpdateRequest, db: DBSession = _db, _admin: User = _require_admin
+) -> SpecializationOut:
+    specialization = services.update_specialization(db, payload.id, payload.name)
+    return SpecializationOut(
+        id=specialization.id, name=specialization.name, is_active=specialization.is_active
+    )
 
 
-@router.delete("/specializations", response_model=StubResponse)
-async def delete_specialization() -> StubResponse:
-    return StubResponse(endpoint="DELETE /admin/specializations")
+@router.delete(
+    "/specializations",
+    response_model=SpecializationDeleteOut,
+    responses={
+        SPECIALIZATION_NOT_FOUND["status_code"]: {
+            "description": SPECIALIZATION_NOT_FOUND["detail"]
+        },
+        SPECIALIZATION_IN_USE["status_code"]: {"description": SPECIALIZATION_IN_USE["detail"]},
+    },
+)
+async def delete_specialization(
+    id: str, db: DBSession = _db, _admin: User = _require_admin
+) -> SpecializationDeleteOut:
+    services.delete_specialization(db, id)
+    return SpecializationDeleteOut(id=id, deleted=True)
 
 
 @router.get("/mappings", response_model=StubResponse)

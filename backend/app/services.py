@@ -11,11 +11,18 @@ from datetime import datetime
 from fastapi import HTTPException
 from sqlalchemy.orm import Session as DBSession
 
-from app.errors import CONSENT_REQUIRED, EMAIL_ALREADY_IN_USE, SPECIALIZATION_NOT_FOUND
+from app.errors import (
+    CONSENT_REQUIRED,
+    EMAIL_ALREADY_IN_USE,
+    SPECIALIZATION_IN_USE,
+    SPECIALIZATION_NAME_TAKEN,
+    SPECIALIZATION_NOT_FOUND,
+)
 from app.models import (
     STAFF_PASSWORD_PLACEHOLDER,
     Appointment,
     AuditLog,
+    DiseaseMappingSpecialization,
     DoctorProfile,
     PatientConsent,
     Specialization,
@@ -114,6 +121,89 @@ def create_staff_account(
         saved_specialization_id = specialization_id
 
     return user, saved_specialization_id
+
+
+def list_specializations(db: DBSession) -> list[Specialization]:
+    """Every specialization administrators can assign, reflecting every add,
+    rename and removal as soon as it commits (AC-050)."""
+    return db.query(Specialization).order_by(Specialization.name).all()
+
+
+def create_specialization(db: DBSession, name: str) -> Specialization:
+    """Add a new specialization (AC-050). Raises SPECIALIZATION_NAME_TAKEN when
+    another specialization already has that exact name."""
+    existing = db.query(Specialization).filter(Specialization.name == name).first()
+    if existing is not None:
+        raise HTTPException(
+            status_code=SPECIALIZATION_NAME_TAKEN["status_code"],
+            detail=SPECIALIZATION_NAME_TAKEN["detail"],
+        )
+
+    specialization = Specialization(name=name, is_active=True)
+    db.add(specialization)
+    db.commit()
+    db.refresh(specialization)
+    return specialization
+
+
+def update_specialization(db: DBSession, specialization_id: str, name: str) -> Specialization:
+    """Rename an existing specialization (AC-050). Raises SPECIALIZATION_NOT_FOUND
+    when `specialization_id` does not match one, and SPECIALIZATION_NAME_TAKEN when
+    another specialization already has the new name."""
+    specialization = db.query(Specialization).filter(Specialization.id == specialization_id).first()
+    if specialization is None:
+        raise HTTPException(
+            status_code=SPECIALIZATION_NOT_FOUND["status_code"],
+            detail=SPECIALIZATION_NOT_FOUND["detail"],
+        )
+
+    existing = (
+        db.query(Specialization)
+        .filter(Specialization.name == name, Specialization.id != specialization_id)
+        .first()
+    )
+    if existing is not None:
+        raise HTTPException(
+            status_code=SPECIALIZATION_NAME_TAKEN["status_code"],
+            detail=SPECIALIZATION_NAME_TAKEN["detail"],
+        )
+
+    specialization.name = name
+    db.commit()
+    db.refresh(specialization)
+    return specialization
+
+
+def delete_specialization(db: DBSession, specialization_id: str) -> None:
+    """Remove a specialization (AC-050). Raises SPECIALIZATION_NOT_FOUND when
+    `specialization_id` does not match one, and SPECIALIZATION_IN_USE -- blocking
+    the deletion -- when a doctor profile or a disease mapping still points at it
+    (AC-051)."""
+    specialization = db.query(Specialization).filter(Specialization.id == specialization_id).first()
+    if specialization is None:
+        raise HTTPException(
+            status_code=SPECIALIZATION_NOT_FOUND["status_code"],
+            detail=SPECIALIZATION_NOT_FOUND["detail"],
+        )
+
+    used_by_doctor = (
+        db.query(DoctorProfile).filter(DoctorProfile.specialization_id == specialization_id).first()
+        is not None
+    )
+    used_by_mapping = (
+        db.query(DiseaseMappingSpecialization)
+        .filter(DiseaseMappingSpecialization.specialization_id == specialization_id)
+        .first()
+        is not None
+    )
+    if used_by_doctor or used_by_mapping:
+        raise HTTPException(
+            status_code=SPECIALIZATION_IN_USE["status_code"],
+            detail=SPECIALIZATION_IN_USE["detail"],
+        )
+
+    db.delete(specialization)
+    db.commit()
 
 
 def doctor_specialization_ids(db: DBSession, user_ids: list[str]) -> dict[str, str]:
