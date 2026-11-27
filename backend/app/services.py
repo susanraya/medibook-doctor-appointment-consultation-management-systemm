@@ -111,6 +111,7 @@ def create_staff_account(
         full_name=full_name,
         is_active=True,
         password_status=STAFF_PASSWORD_PLACEHOLDER,
+        specialization=specialization.name if role == "doctor" else None,
     )
     db.add(user)
     db.commit()
@@ -371,6 +372,49 @@ def update_doctor_status(db: DBSession, doctor: User, is_active: bool) -> list[s
         appointment.needs_reassignment = True
     db.commit()
     return [appointment.id for appointment in appointments]
+
+
+def search_doctors(
+    db: DBSession, specialization: str | None, symptom: str | None
+) -> list[User]:
+    """Active doctors patient search can offer (AC-048, AC-052).
+
+    A `specialization` name matches a doctor's denormalized `specialization`
+    field directly. A `symptom` (or disease) term is first resolved through
+    `disease_mappings`/`disease_mapping_specializations` to the specialization
+    names it currently points at -- reflecting the very latest add, edit or
+    removal, since that table is read fresh on every call -- and only active
+    doctors in one of those specializations are returned. Neither filter
+    given returns every active doctor.
+    """
+    query = db.query(User).filter(User.role == "doctor", User.is_active.is_(True))
+
+    if specialization:
+        return query.filter(User.specialization == specialization).order_by(User.full_name).all()
+
+    if symptom:
+        mapping = db.query(DiseaseMapping).filter(DiseaseMapping.term == symptom).first()
+        if mapping is None:
+            return []
+        specialization_ids = [
+            row.specialization_id
+            for row in db.query(DiseaseMappingSpecialization)
+            .filter(DiseaseMappingSpecialization.mapping_id == mapping.id)
+            .all()
+        ]
+        if not specialization_ids:
+            return []
+        names = {
+            row.name
+            for row in db.query(Specialization)
+            .filter(Specialization.id.in_(specialization_ids))
+            .all()
+        }
+        if not names:
+            return []
+        return query.filter(User.specialization.in_(names)).order_by(User.full_name).all()
+
+    return query.order_by(User.full_name).all()
 
 
 def record_audit_log(

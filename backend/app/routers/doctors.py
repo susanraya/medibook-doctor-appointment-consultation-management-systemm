@@ -5,20 +5,34 @@ Stubs only -- see `app.routers.auth` for why, except the status toggle, which
 is implemented (AC-049).
 """
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session as DBSession
 
 from app.database import get_db
 from app.deps import require_role
 from app.errors import DOCTOR_NOT_FOUND
 from app.models import User
-from app.schemas import DoctorStatusOut, DoctorStatusUpdateRequest, StubResponse
+from app.schemas import DoctorStatusOut, StubResponse
 from app.services import update_doctor_status
 
 router = APIRouter(tags=["doctors"])
 
 _require_admin = Depends(require_role("admin"))
 _db = Depends(get_db)
+
+
+class _DoctorStatusBody(BaseModel):
+    """PUT /admin/doctors/{doctor_id}/status's body (AC-049).
+
+    Defined locally rather than in `app.schemas` because this sprint's own
+    test cases name the field `status` (`"active"`/`"inactive"`), not the
+    `is_active` boolean the original schema used.
+    """
+
+    status: Literal["active", "inactive"]
 
 
 @router.get("/doctors/{doctor_id}/slots", response_model=StubResponse)
@@ -35,7 +49,7 @@ async def doctor_slots(doctor_id: str) -> StubResponse:
 )
 async def set_doctor_status(
     doctor_id: str,
-    payload: DoctorStatusUpdateRequest,
+    payload: _DoctorStatusBody,
     db: DBSession = _db,
     _admin: User = _require_admin,
 ) -> DoctorStatusOut:
@@ -45,7 +59,8 @@ async def set_doctor_status(
             status_code=DOCTOR_NOT_FOUND["status_code"], detail=DOCTOR_NOT_FOUND["detail"]
         )
 
-    flagged_appointment_ids = update_doctor_status(db, doctor, payload.is_active)
+    is_active = payload.status == "active"
+    flagged_appointment_ids = update_doctor_status(db, doctor, is_active)
     return DoctorStatusOut(
         id=doctor.id,
         is_active=doctor.is_active,
